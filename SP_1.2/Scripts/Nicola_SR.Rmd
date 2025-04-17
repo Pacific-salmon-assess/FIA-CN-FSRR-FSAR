@@ -13,6 +13,7 @@ here::here()
 library(dplyr)
 library(tidyverse)
 library(rstan)
+library(rstanarm)
 library(shinystan)
 library(bayesplot)
 library(pkgbuild)
@@ -78,8 +79,10 @@ saveRDS(out_rw, "Results/out_rw.rds")
 
 ```{r results vis}
 
+#mean SAS index
 mlogit_surv <- mean(nic_dat$smolt_age3_survival)
 
+#mean prediction functions for Ricker with SAS index covariate
 ricker <- function(x){
   (out$summary[1,1] * x + out$summary[3,1] * mlogit_surv + out$summary[2,1])
 }
@@ -88,16 +91,41 @@ ricker_exp <- function(x){
   exp(out$summary[1,1] * x + out$summary[3,1] * mlogit_surv + out$summary[2,1]) * x
 }
 
+#drawing from the posterior distribution to show error in relationships
+alpha <- as.vector(extract(fit)[2])
+beta <- as.vector(extract(fit)[1])
+gamma <- as.data.frame(extract(fit)[3])
+post <- data.frame(alpha, beta, gamma)
+
+set.seed(42)
+poste <- sample_n(post, 1000)
+
+#showing a sample of 1000 alternative lines within the posterior
+uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){(poste[1] + poste[2] * x + poste[3] * mlogit_surv)}, colour="blue",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x + poste[3] * mlogit_surv) * x}, colour="blue",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
+#S-R plot for relationship with SAS index covariate
 nic_dat %>% ggplot(aes(x = total_spawners, y = log(wild_recruits/total_spawners)))+
   geom_point()+
+  uncertainty_ricker+
   geom_function(fun = ricker)+
   theme_classic()
 
 nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
   geom_function(fun = ricker_exp)+
+  uncertainty_ricker_exp+
   theme_classic()
 
+
+#mean prediction functions for Ricker with random walk autocorrelation and no SAS index parameter
 ricker_rw <- function(x){
   (out_rw$summary[1,1] * x + out_rw$summary[2,1])
 }
@@ -106,13 +134,34 @@ ricker_exp_rw <- function(x){
   exp(out_rw$summary[1,1] * x + out_rw$summary[2,1]) * x
 }
 
+#drawing from the posterior distribution to show error in relationships
+alpha <- as.vector(extract(fit_rw)[2])
+beta <- as.vector(extract(fit_rw)[1])
+post <- data.frame(alpha, beta)
+
+set.seed(42)
+poste <- sample_n(post, 1000)
+
+#showing a sample of 1000 alternative lines within the posterior
+uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){(poste[1] + poste[2] * x)}, colour="red",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="red",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
 nic_dat %>% ggplot(aes(x = total_spawners, y = log(wild_recruits/total_spawners)))+
   geom_point()+
+  uncertainty_ricker+
   geom_function(fun = ricker_rw)+
   theme_classic()
 
 nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
+  uncertainty_ricker_exp+
   geom_function(fun = ricker_exp_rw)+
   theme_classic()
 
