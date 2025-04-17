@@ -12,15 +12,18 @@ parameters {
   real<lower=0> alpha;      //population-specific Ricker alpha parameter
   real gamma;               //population-specific survival index parameter
   real<lower=0> sigma;      //population-specific SD within the autocorrelated process
+  real surv_est;            //estimating 1992 survival as the hatchery smolts released from the 1992 brood had a mixobacterial infection that caused high mortality rates
 }
 
 model {
-    for(i in 1:N){
+  lrs[1] ~ normal(beta * S[1] + gamma * surv_est + alpha, sigma);
+    for(i in 2:N){
       lrs[i] ~ normal(beta * S[i] + gamma * surv[i] + alpha, sigma);
 }
   beta ~ normal(0, 10);
-  alpha ~ cauchy(0, 5);
+  alpha ~ cauchy(0,5);
   gamma ~ normal(0, 10);
+  surv_est ~ normal(0, 2);
   sigma ~ cauchy(0, 5);
 }
 

@@ -26,7 +26,7 @@ model {
       lrs[i] ~ normal(beta * S[i] + alpha + rw[i-1], sigma);
 }
   beta ~ normal(0, 10);
-  alpha ~ cauchy(0, 5);
+  alpha ~ cauchy(0,5);
   sigma ~ cauchy(0, 5);
 }
 

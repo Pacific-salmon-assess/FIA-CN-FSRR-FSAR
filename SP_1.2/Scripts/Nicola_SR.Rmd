@@ -37,10 +37,9 @@ head(nic_dat)
 
 ```{r data vis}
 
-nic_dat %>% ggplot(aes(x = brood_year, y = log(wild_recruits/total_spawners)))+
+nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
   theme_classic()
-
 
 ```
 
@@ -49,30 +48,20 @@ nic_dat %>% ggplot(aes(x = brood_year, y = log(wild_recruits/total_spawners)))+
 
 #creating the list of data to feed to Stan
 dat <- list("N" = nrow(nic_dat),                  #number of years of data
-            "surv" = nic_dat$smolt_age3_survival, #logit-transformed smolt to age 3 adult survival
+            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) / sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
             "lrs" = pull(nic_dat %>% mutate(lrs = log(wild_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin recruits per spawner (HO & NO)
             "S" = nic_dat$total_spawners, #vector of total spawner abundance
-            "mlogit_surv" = mean(nic_dat$smolt_age3_survival)) #mean logit-transformed survival
+            "mlogit_surv" = 0) #mean logit-transformed survival
 
 #running the Stan model
 fit <- stan(file = "Scripts/Ricker.stan", data = dat, chains=6,
                     iter=10000, cores=6, thin = 1,
                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("beta", "alpha", "gamma", "sigma", "nu_Y", "mu_gamma_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+                    pars=c("beta", "alpha", "gamma", "sigma", "surv_est", "nu_Y", "mu_gamma_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
 
 #fit summary
 out <- summary(fit)
 saveRDS(out, "Results/out.rds")
-
-#running the Stan model with RW
-fit_rw <- stan(file = "Scripts/Ricker_rw.stan", data = dat, chains=6,
-                    iter=10000, cores=6, thin = 1,
-                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("beta", "alpha", "sigma", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
-
-#fit summary
-out_rw <- summary(fit_rw)
-saveRDS(out_rw, "Results/out_rw.rds")
 
 ```
 
@@ -80,7 +69,7 @@ saveRDS(out_rw, "Results/out_rw.rds")
 ```{r results vis}
 
 #mean SAS index
-mlogit_surv <- mean(nic_dat$smolt_age3_survival)
+mlogit_surv <- 0
 
 #mean prediction functions for Ricker with SAS index covariate
 ricker <- function(x){
@@ -121,9 +110,48 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = log(wild_recruits/total_spawners)
 nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
   geom_function(fun = ricker_exp)+
+  geom_abline(aes(slope = 1, intercept = 0))+
   uncertainty_ricker_exp+
   theme_classic()
 
+```
+
+
+```{r alternative Ricker models}
+nic_dat <- nic_dat %>% filter(brood_year > 1992)
+
+#creating the list of data to feed to Stan
+dat <- list("N" = nrow(nic_dat),                  #number of years of data
+            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) / sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(nic_dat %>% mutate(lrs = log(wild_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin recruits per spawner (HO & NO)
+            "S" = nic_dat$total_spawners, #vector of total spawner abundance
+            "mlogit_surv" = 0) #mean logit-transformed survival
+
+#running the Stan model
+fit <- stan(file = "Scripts/Ricker_sans1992.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "gamma", "sigma", "nu_Y", "mu_gamma_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+
+#fit summary
+out92 <- summary(fit)
+saveRDS(out, "Results/out.rds")
+
+#running the Stan model with RW
+fit_rw <- stan(file = "Scripts/Ricker_rw.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "sigma", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+
+#fit summary
+out_rw <- summary(fit_rw)
+saveRDS(out_rw, "Results/out_rw.rds")
+
+
+```
+
+
+```{r random walk model vis}
 
 #mean prediction functions for Ricker with random walk autocorrelation and no SAS index parameter
 ricker_rw <- function(x){
@@ -161,6 +189,7 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = log(wild_recruits/total_spawners)
 
 nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0))+
   uncertainty_ricker_exp+
   geom_function(fun = ricker_exp_rw)+
   theme_classic()
