@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-here::here()
+setwd("C://Users//BAILEYCO//Documents//GitHub//FIA-CN-FSRR-FSAR//SP_1.2")
 
 library(dplyr)
 library(tidyverse)
@@ -105,13 +105,38 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = log(wild_recruits/total_spawners)
   geom_point()+
   uncertainty_ricker+
   geom_function(fun = ricker)+
+  labs(x = "Spawners(n)", y = "log(Recruits/Spawner)")+
   theme_classic()
 
 nic_dat %>% ggplot(aes(x = total_spawners, y = wild_recruits))+
   geom_point()+
   geom_function(fun = ricker_exp)+
-  geom_abline(aes(slope = 1, intercept = 0))+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
   uncertainty_ricker_exp+
+  labs(x = "Spawners(n)", y = "Recruits(n)")+
+  theme_classic()
+
+
+#Diagnostic Plots
+
+##Pairs Plots
+pairs(fit, pars = c("beta", "alpha", "gamma", "sigma", "surv_est"))
+
+##Predicted vs observed
+nic_dat$pred <- out$summary[6:34,1]
+
+###predicted ~ observed
+nic_dat %>% ggplot(aes(x = log(wild_recruits/total_spawners), y = pred))+
+  geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  labs(x = "Observed", y = "Predicted")+
+  theme_classic()
+
+###observed - predicted ~ brood year
+nic_dat %>% ggplot(aes(x = brood_year, y = log(wild_recruits/total_spawners) - pred))+
+  geom_point()+
+  geom_abline(aes(slope = 0, intercept = 0), colour = "black", linetype = "dashed")+
+  labs(x = "Brood Year", y = "Observed - Predicted")+
   theme_classic()
 
 ```
