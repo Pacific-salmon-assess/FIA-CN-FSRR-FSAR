@@ -1,0 +1,73 @@
+---
+title: "SP_1.2_SIM"
+author: "Colin Bailey"
+date: "2025-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+library(shinystan)
+library(bayesplot)
+library(pkgbuild)
+library(boot)
+library(loo)
+library(MASS)
+#install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
+#remotes::install_github("Pacific-salmon-assess/samSim")  
+library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
+
+pkgbuild::has_build_tools(debug = TRUE)
+
+rstan_options(auto_write=T)
+
+options(mc.cores = parallel::detectCores())
+
+#escapement data
+esc_dat <- read.csv("SP_1.2\\Data_in\\sp1.2_smu_no_escape.csv")
+head(esc_dat)
+
+#posterior data
+pos_dat <- readRDS("data\\post.rds")
+head(pos_dat)
+
+#age data
+age_dat <- read.csv("SP_1.2\\Data_in\\")
+head(age_dat)
+
+```
+
+
+```{r sim data prep}
+
+#Escapement correlation - filter out pops with high hatchery influence & no NO estimates, and filter out years with NAs
+`%!in%` <- Negate(`%in%`)
+dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
+
+source("R\\pop_cor.R")
+
+corr <- pop_cor(dat)
+
+#Ricker Parameter Posteriors - fill in the beta column based on the alpha and sigma posterior from the Nicola S-R
+
+
+#Tau for age variance
+
+
+```
+
+
+```{r sim input files}
+
+
+
+
+
+
+```
+
