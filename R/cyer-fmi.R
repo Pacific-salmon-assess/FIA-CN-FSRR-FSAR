@@ -301,8 +301,8 @@ dat <- readRDS(here::here("data", "cyer_fmi_dat.rds"))
 dat_trim <-  dat %>%
   filter(year > 2018) %>% 
   mutate(
-    log_can_er = log(can_er),
-    log_fmi = log(fmi)
+    se_fmi = fmi * 0.1,
+    se_fmi2 = fmi * 0.2
   )
 
 fmi_cyer_cor <- ggplot(dat_trim) +
@@ -319,7 +319,7 @@ library(DHARMa)
 
 # random ints
 fit_brms <- brm(
-  can_er ~ fmi + (1 | indicator), 
+  can_er ~ me(fmi, se_fmi) + (1 | indicator), 
   data = dat_trim,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
@@ -330,7 +330,7 @@ fit_brms <- brm(
   )
 # random slopes and ints
 fit_brms2 <- brm(
-  can_er ~ fmi + (1 + fmi | indicator), 
+  can_er ~ me(fmi, se_fmi) + (1 + me(fmi, se_fmi) | indicator), 
   data = dat_trim,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
@@ -342,7 +342,7 @@ fit_brms2 <- brm(
 )
 # constrained to be nearly through 0 with strong informative prior
 fit_brms3 <- brm(
-  can_er ~ fmi + (fmi | indicator), 
+  can_er ~ me(fmi, se_fmi) + (me(fmi, se_fmi) | indicator), 
   data = dat_trim,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(-10, 0.25), class = "Intercept"), # very negative prior near 0
