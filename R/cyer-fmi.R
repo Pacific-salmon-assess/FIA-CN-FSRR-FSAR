@@ -228,7 +228,7 @@ dome_cyer_dat <- read.csv(
 
 library(reshape2)
 library(corrplot)
-
+library(GGally)
 
 cyer_wide1 <- cyer_dat %>% 
   select(year, indicator, total_er) %>% 
@@ -238,15 +238,41 @@ cyer_wide2 <- rbind(cyer_dat, dome_cyer_dat) %>%
   select(year, indicator, total_er) %>% 
   pivot_wider(names_from = "indicator", values_from = "total_er") 
 
+cyer_wide_can <- rbind(cyer_dat, dome_cyer_dat) %>% 
+  filter(year %in% dome_cyer_dat$year) %>%
+  select(year, indicator, can_er) %>% 
+  pivot_wider(names_from = "indicator", values_from = "can_er") 
+
+
 cor_foo <- function (x) {
-  cor_mat <- cor(x %>% select(-year), use = "pairwise.complete.obs")
-  
-  corrplot(cor_mat, method = "color", type = "upper",
-           tl.col = "black", tl.srt = 45, addCoef.col = "black")
+  # cor_mat <- cor(x %>% select(-year),
+  #                use = "pairwise.complete.obs")
+  # 
+  # corrplot.mixed(cor_mat,
+  #                lower = "circle",   # lower triangle = circles
+  #                upper = "number",   # upper triangle = numeric values
+  #                tl.col = "black",
+  #                tl.srt = 45,
+  #                diag   = "n")
+  # df2 <- 
+  ggpairs(x %>% select(-year),
+          upper = list(continuous = wrap("cor", size = 4)),
+          lower = list(continuous = "points"),
+          diag  = list(continuous = "barDiag")) +
+    theme(strip.text = element_text(size = 10))
 }
 
 cor_foo(cyer_wide1)
+
+png(here::here("figs", "cwt_indicator_total_cyer.png"), height = 6.5, 
+    width = 6.5, units = "in", res = 250)
 cor_foo(cyer_wide2)
+dev.off()
+
+png(here::here("figs", "cwt_indicator_can_cyer.png"), height = 6.5, 
+    width = 6.5, units = "in", res = 250)
+cor_foo(cyer_wide_can)
+dev.off()
 
 
 ## CLEAN FMI DATA --------------------------------------------------------------
