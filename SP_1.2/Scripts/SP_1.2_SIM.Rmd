@@ -19,7 +19,7 @@ library(boot)
 library(loo)
 library(MASS)
 #install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
-#remotes::install_github("Pacific-salmon-assess/samSim")  
+#remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk", force=TRUE)
 library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
 
 pkgbuild::has_build_tools(debug = TRUE)
@@ -37,7 +37,7 @@ pos_dat <- readRDS("data\\post.rds")
 head(pos_dat)
 
 #age data
-age_dat <- read.csv("SP_1.2\\Data_in\\")
+age_dat <- read.csv("SP_1.2\\Data_in\\rec_age_comp.csv")
 head(age_dat)
 
 ```
@@ -52,12 +52,26 @@ dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", 
 source("R\\pop_cor.R")
 
 corr <- pop_cor(dat)
+corr
 
 #Ricker Parameter Posteriors - fill in the beta column based on the alpha and sigma posterior from the Nicola S-R
+post <- readRDS("data\\post.rds")
+
+rws <- sample(x = 1:30000, size = 1000, replace = F)
+
+post_nic <- post[rws,] %>% arrange(beta)
 
 
-#Tau for age variance
 
+#Tau for age variance and mean proportions at age (3,4,5)
+ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
+                   p4 = a4/(a3 + a4 + a5),
+                   p5 = a5/(a3 + a4 + a5)) %>% dplyr::select(p3, p4, p5)
+
+source("R\\age_tau.R")
+
+tau <- tau_comp(ppnMat)$tau
+m_props <- tau_comp(ppnMat)$pa
 
 ```
 

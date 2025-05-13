@@ -1,2 +1,4 @@
 #code to estimate tau from age proportion data
-ans<-mvLogisticLL(agePropData=ppnMat)
+tau_comp <- function(ppnMat){
+  mvLogisticLL(agePropData=ppnMat)
+}
