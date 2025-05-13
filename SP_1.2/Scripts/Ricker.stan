@@ -6,43 +6,62 @@ data {
   vector[N] S;              //log recruits per spawner
   real mlogit_surv;         //mean logit-transformed smolt-to-adult survival
   }
-
 parameters {
-  real beta;                //population-specific Ricker beta parameter
+  real<lower=0> Smax;       //capacity - spawners that maximizes recruitment
   real<lower=0> alpha;      //population-specific Ricker alpha parameter
   real gamma;               //population-specific survival index parameter
   real<lower=0> sigma;      //population-specific SD within the autocorrelated process
   real surv_est;            //estimating 1992 survival as the hatchery smolts released from the 1992 brood had a mixobacterial infection that caused high mortality rates
 }
+transformed parameters {
+real<lower=0> beta=1.0/Smax; //beta - per capita density dependence parameter
+vector[N] mu; //expectation in each year
+vector[N] epsilon; //log(R/S) residuals
+real<lower=0> sigma_AR; //sigma - corrected for autocorrelation
 
-model {
-  lrs[1] ~ normal(beta * S[1] + gamma * surv_est + alpha, sigma);
-    for(i in 2:N){
-      lrs[i] ~ normal(beta * S[i] + gamma * surv[i] + alpha, sigma);
+mu[1] = alpha-beta * S[1] + gamma * surv_est; //first year with unknown survival
+mu[2:N] = alpha-beta * S[2:N] + gamma * surv; //subsequent expectation with estimated survival
+epsilon[1] = lrs[1] - mu[1];
+for(t in 2:N){
+    epsilon[t] =(lrs[t] - mu[t]);
+    mu[t] = mu[t] + (rho^(ii[t]-ii[t-1])*epsilon[t-1]); //rho raised the power of the number of time-steps between successive productivity estimates
+  }
+  sigma_AR = sigma*sqrt(1-rho^2); //sigma corrected for autocorrelation parameter rho
+
 }
-  beta ~ normal(0, 10);
-  alpha ~ cauchy(0,5);
+model {
+  lrs[1] ~ normal(mu[1], sigma);
+  for(i in 2:N)lrs[i] ~ normal(mu[i], sigma_AR);
+  
+  Smax ~ lognormal(10,10); //change this to something
+  alpha ~ cauchy(1,5);
   gamma ~ normal(0, 10);
-  surv_est ~ normal(0, 2);
+  surv_est ~ normal(0, 1);
   sigma ~ cauchy(0, 5);
+
+  //autocorrelation term
+  rho ~ uniform(-1,1);
+
 }
 
 generated quantities {
   vector[N] nu_Y;
-  vector[N] mu_gamma_Y;
   vector[N] nu_rec;
   real srep;
   real smsy_85;
   real smsy;
   real umsy;
-    for(i in 1:N){
-      nu_Y[i] = normal_rng(beta * S[i] + gamma * surv[i] + alpha, sigma);
-      mu_gamma_Y[i] = normal_rng(beta * S[i] + gamma * mlogit_surv + alpha, sigma);
-      nu_rec[i] = exp(mu_gamma_Y[i])*S[i];
+  
+  nu_Y[1] = normal_rng(mu[1], sigma);
+  nu_rec[1] = exp(nu_Y[i])*S[i]; 
+  for(i in 2:N){
+      nu_Y[i] = normal_rng(mu[i], sigma_AR);
+      nu_rec[i] = exp(nu_Y[i])*S[i];
   }
-  srep = (alpha + gamma*mlogit_surv)/(-1*beta);
-  smsy_85 = 0.85*((1 - lambert_w0(exp(1 - (alpha + gamma*mlogit_surv)))) / (-1*beta));
-  smsy = ((1 - lambert_w0(exp(1 - (alpha + gamma*mlogit_surv)))) / (-1*beta));
-  umsy = 1 - lambert_w0(exp(1 - (alpha + gamma*mlogit_surv)));
+  
+  srep = (alpha)/(beta);
+  smsy_85 = 0.85*((1 - lambert_w0(exp(1 - (alpha)))) / (beta));
+  smsy = ((1 - lambert_w0(exp(1 - (alpha)))) / (beta));
+  umsy = 1 - lambert_w0(exp(1 - (alpha)));
 }
 
