@@ -55,7 +55,7 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 # fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
 #                     iter=10000, cores=6, thin = 1,
 #                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-#                     pars=c("beta", "alpha", "gamma", "sigma", "surv_est", "nu_Y", "mu_gamma_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+#                     pars=c("beta", "alpha", "gamma", "sigma", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
 # 
 # #fit summary
 # out <- summary(fit)
@@ -70,35 +70,32 @@ out <- readRDS("SP_1.2//Results/out.rds")
 
 ```{r results vis}
 
-#mean SAS index
-mlogit_surv <- 0
-
 #mean prediction functions for Ricker with SAS index covariate
 ricker <- function(x){
-  (out$summary[1,1] * x + out$summary[3,1] * mlogit_surv + out$summary[2,1])
+  (-out$summary[1,1] * x + out$summary[3,1] + out$summary[2,1])
 }
 
 ricker_exp <- function(x){
-  exp(out$summary[1,1] * x + out$summary[3,1] * mlogit_surv + out$summary[2,1]) * x
+  exp(-out$summary[1,1] * x + out$summary[3,1] + out$summary[2,1]) * x
 }
 
 #drawing from the posterior distribution to show error in relationships
 alpha <- as.vector(extract(fit)[2])
 beta <- as.vector(extract(fit)[1])
 gamma <- as.data.frame(extract(fit)[3])
-post <- data.frame(alpha, beta, gamma)
+post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
 
 set.seed(42)
 poste <- sample_n(post, 1000)
 
 #showing a sample of 1000 alternative lines within the posterior
 uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
-  stat_function(fun=function(x){(poste[1] + poste[2] * x + poste[3] * mlogit_surv)}, colour="blue",
+  stat_function(fun=function(x){(poste[1] + poste[2] * x + poste[3])}, colour="blue",
                 alpha = 0.02, linewidth = 0.01)
   })
 
 uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
-  stat_function(fun=function(x){exp(poste[1] + poste[2] * x + poste[3] * mlogit_surv) * x}, colour="blue",
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x + poste[3]) * x}, colour="blue",
                 alpha = 0.02, linewidth = 0.01)
   })
 
@@ -116,6 +113,7 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
   geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
   uncertainty_ricker_exp+
   labs(x = "Spawners(n)", y = "Recruits(n)")+
+  scale_y_continuous(limits = c(0, 10000))+
   theme_classic()
 
 
