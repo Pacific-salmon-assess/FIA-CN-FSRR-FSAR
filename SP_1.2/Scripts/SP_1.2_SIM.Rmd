@@ -49,6 +49,8 @@ head(age_dat)
 `%!in%` <- Negate(`%in%`)
 dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
 
+bess <- dat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(return = sum(TotalInfilled, na.rm = T))
+
 source("R\\pop_cor.R")
 
 corr <- pop_cor(dat)
