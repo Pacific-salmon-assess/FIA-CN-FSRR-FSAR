@@ -34,7 +34,7 @@ model {
   lrs[1] ~ normal(mu[1], sigma);
   for(i in 2:N)lrs[i] ~ normal(mu[i], sigma_AR);
   
-  Smax ~ lognormal(10,10); //change this to something
+  Smax ~ lognormal(8.5,1); //change this to something
   alpha ~ cauchy(1,5);
   gamma ~ normal(0, 10);
   surv_est ~ normal(0, 1);
@@ -57,7 +57,7 @@ generated quantities {
   nu_rec[1] = exp(nu_Y[1])*S[1]; 
   for(i in 2:N){
       nu_Y[i] = normal_rng(mu[i], sigma_AR);
-      nu_rec[i] = exp(nu_Y[i])*S[i];
+      nu_rec[i] = exp(nu_Y[i]*S[i]);
   }
   
   srep = (alpha)/(-beta);

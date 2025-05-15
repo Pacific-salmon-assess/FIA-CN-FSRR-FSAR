@@ -44,23 +44,23 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 
 ```{r ricker model}
 
-# #creating the list of data to feed to Stan
-# dat <- list("N" = nrow(nic_dat),                  #number of years of data
-#             "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) / sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
-#             "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin recruits per spawner (HO & NO)
-#             "S" = nic_dat$total_spawners, #vector of total spawner abundance
-#             "mlogit_surv" = 0) #mean logit-transformed survival
-# 
-# #running the Stan model
-# fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
-#                     iter=10000, cores=6, thin = 1,
-#                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-#                     pars=c("beta", "alpha", "gamma", "sigma", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
-# 
-# #fit summary
-# out <- summary(fit)
-# saveRDS(fit, "SP_1.2//Results/fit.rds")
-# saveRDS(out, "SP_1.2//Results/out.rds")
+#creating the list of data to feed to Stan
+dat <- list("N" = nrow(nic_dat),                  #number of years of data
+            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) / sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin recruits per spawner (HO & NO)
+            "S" = nic_dat$total_spawners, #vector of total spawner abundance
+            "mlogit_surv" = 0) #mean logit-transformed survival
+
+#running the Stan model
+fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+
+#fit summary
+out <- summary(fit)
+saveRDS(fit, "SP_1.2//Results/fit.rds")
+saveRDS(out, "SP_1.2//Results/out.rds")
 
 fit <- readRDS("SP_1.2//Results/fit.rds")
 out <- readRDS("SP_1.2//Results/out.rds")
@@ -72,11 +72,11 @@ out <- readRDS("SP_1.2//Results/out.rds")
 
 #mean prediction functions for Ricker with SAS index covariate
 ricker <- function(x){
-  (-out$summary[1,1] * x + out$summary[3,1] + out$summary[2,1])
+  (-out$summary[1,1] * x + out$summary[2,1])
 }
 
 ricker_exp <- function(x){
-  exp(-out$summary[1,1] * x + out$summary[3,1] + out$summary[2,1]) * x
+  exp(-out$summary[1,1] * x + out$summary[2,1]) * x
 }
 
 #drawing from the posterior distribution to show error in relationships
@@ -90,12 +90,12 @@ poste <- sample_n(post, 1000)
 
 #showing a sample of 1000 alternative lines within the posterior
 uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
-  stat_function(fun=function(x){(poste[1] + poste[2] * x + poste[3])}, colour="blue",
+  stat_function(fun=function(x){(poste[1] + poste[2] * x)}, colour="blue",
                 alpha = 0.02, linewidth = 0.01)
   })
 
 uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
-  stat_function(fun=function(x){exp(poste[1] + poste[2] * x + poste[3]) * x}, colour="blue",
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="blue",
                 alpha = 0.02, linewidth = 0.01)
   })
 
@@ -113,7 +113,7 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
   geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
   uncertainty_ricker_exp+
   labs(x = "Spawners(n)", y = "Recruits(n)")+
-  scale_y_continuous(limits = c(0, 10000))+
+  scale_y_continuous(limits = c(0, 30000))+
   theme_classic()
 
 
