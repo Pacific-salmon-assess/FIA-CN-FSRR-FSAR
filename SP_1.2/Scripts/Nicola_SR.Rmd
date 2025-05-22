@@ -41,6 +41,21 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 
 ```
 
+```{r, hatchery scalar estimation}
+
+nic_dat$hatchery_spawners=nic_dat$total_spawners-nic_dat$no_spawners #hatchery spawner abundance
+nic_dat$p_hatch_no=nic_dat$hatchery_spawners/nic_dat$no_spawners #ratio of hatchery:natural origin spawners
+
+#estimate gamma distribution parameters
+fit<- dglm::dglm(nic_dat$p_hatch_no~1,family=Gamma(link='log'))
+mu<- exp(fit$coefficients[1])
+shape<- exp(fit$dispersion.fit$coefficients[1])
+scale<- mu/shape
+par(mfrow=c(1,2))
+hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
+hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
+
+```
 
 ```{r ricker model}
 
