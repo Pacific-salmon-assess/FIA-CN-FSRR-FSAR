@@ -51,6 +51,7 @@ fit<- dglm::dglm(nic_dat$p_hatch_no~1,family=Gamma(link='log'))
 mu<- exp(fit$coefficients[1])
 shape<- exp(fit$dispersion.fit$coefficients[1])
 scale<- mu/shape
+max_hsp<- max(nic_dat$hatchery_spawners)
 par(mfrow=c(1,2))
 hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
 hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
