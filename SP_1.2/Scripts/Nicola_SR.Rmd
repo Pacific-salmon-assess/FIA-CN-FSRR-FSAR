@@ -41,6 +41,7 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 
 ```
 
+Note that hatchery spawners are baked into the SR analysis... Hatchery spawners included with total spawners, but not included in the recruits for the model. This means that we are not considering the differential productivity between hatchery and NO spawners in these analyses.
 
 ```{r ricker model}
 
@@ -55,7 +56,7 @@ dat <- list("N" = nrow(nic_dat),                  #number of years of data
 fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
                     iter=10000, cores=6, thin = 1,
                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy"))
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy", "alpha_prime", "srep_prime"))
 
 #fit summary
 out <- summary(fit)
@@ -85,8 +86,10 @@ beta <- as.vector(extract(fit)[1])
 gamma <- as.data.frame(extract(fit)[3])
 post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
 
+qpost <- post %>% filter(alpha > quantile(post$alpha, probs = c(0.025)) & alpha < quantile(post$alpha, probs = c(0.975)))
+
 set.seed(42)
-poste <- sample_n(post, 1000)
+poste <- sample_n(qpost, 1000)
 
 #showing a sample of 1000 alternative lines within the posterior
 uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
@@ -120,10 +123,10 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 #Diagnostic Plots
 
 ##Pairs Plots
-pairs(fit, pars = c("beta", "alpha", "gamma", "sigma", "surv_est"))
+pairs(fit, pars = c("beta", "alpha", "gamma", "sigma", "surv_est", "rho"))
 
 ##Predicted vs observed
-nic_dat$pred <- out$summary[6:34,1]
+nic_dat$pred <- out$summary[8:36,1]
 
 ###predicted ~ observed
 nic_dat %>% ggplot(aes(x = log(no_recruits/total_spawners), y = pred))+
@@ -139,6 +142,34 @@ nic_dat %>% ggplot(aes(x = brood_year, y = log(no_recruits/total_spawners) - pre
   labs(x = "Brood Year", y = "Observed - Predicted")+
   theme_classic()
 
+
+#creating a list of dataframes of parameter vectors to feed to the sgen solver -> note that negative values of sMSY are not sensible, thus all negative values from the posterior are converted to 0
+theta = data.frame(alpha = as.vector(alpha), beta = as.vector(beta), sigma = as.vector(extract(fit)[4]))
+sMSY = ifelse(unlist(data.frame(as.vector(extract(fit)[12]))) > 0, unlist(data.frame(as.vector(extract(fit)[12]))), 0)
+
+#calculating sgen for each iteration of both models
+sgen <- matrix(nrow = nrow(theta), ncol = 1)
+for(i in 1:nrow(theta)){
+  sgen[i] <- sGenSolver(unlist(theta[i,]), sMSY[i])
+  }
+
+quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
+quantile(sMSY, probs = c(0.025, 0.5, 0.975))
+
+sGenDirect <- function(loga, b){
+ sMSY <- ( 1 - gsl::lambert_W0 (exp ( 1 - loga) ) ) / b
+ a <- exp(loga)
+ -1/b*gsl::lambert_W0(-b*sMSY/a)
+}
+
+sgen <- matrix(nrow = nrow(theta), ncol = 1)
+for(i in 1:nrow(theta)){
+  sgen[i] <- sGenDirect(unlist(theta[i,1]), unlist(theta[i,2]))
+}
+
+#95% CI and median sgen value for Nicola River
+quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
+
 ```
 
 
@@ -148,9 +179,12 @@ nic_dat %>% ggplot(aes(x = brood_year, y = log(no_recruits/total_spawners) - pre
 alpha <- as.vector(extract(fit)[2])
 beta <- as.vector(extract(fit)[1])
 sigma <- as.data.frame(extract(fit)[4])
-post <- data.frame(alpha, beta, sigma)
+alpha_prime <- as.data.frame(extract(fit)[14])
+post <- data.frame(alpha, beta, sigma, alpha_prime)
 
-saveRDS(post, "data\\post.rds")
+poste <- post[sample(nrow(post), 1000),]
+
+saveRDS(poste, "data\\post.rds")
 
 ```
 

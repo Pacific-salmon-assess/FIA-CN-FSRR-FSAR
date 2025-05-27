@@ -45,38 +45,75 @@ head(age_dat)
 
 ```{r sim data prep}
 
-#Escapement correlation - filter out pops with high hatchery influence & no NO estimates, and filter out years with NAs
+###Escapement correlation### - filter out pops with high hatchery influence & no NO estimates, and filter out years with NAs
 `%!in%` <- Negate(`%in%`)
 dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
 
-bess <- dat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(return = sum(TotalInfilled, na.rm = T))
+bess <- dat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(TotalInfilled = sum(TotalInfilled, na.rm = F))
+
+dat_simp <- dat %>% filter(Pop_Name %!in% c("BESSETTE CREEK", "HARRIS CREEK", "CREIGHTON CREEK", "DUTEAU CREEK"))
+
+dat_bess <- dat %>% filter(Pop_Name == "BESSETTE CREEK") %>% dplyr::select(-TotalInfilled) %>%
+  bind_cols(., TotalInfilled = bess$TotalInfilled)
+
+dat <- bind_rows(dat_simp, dat_bess)
 
 source("R\\pop_cor.R")
 
-corr <- pop_cor(dat)
-corr
+corr <- pop_cor(dat) #population correlation matrix
 
-#Ricker Parameter Posteriors - fill in the beta column based on the alpha and sigma posterior from the Nicola S-R
+###Estimate srep from watershed areas for populations without beta estimates###
+wa = c(3499, 890, 519, 388)
+pop = c("Bonaparte River", "Deadman River", "Louis Creek", "Bessette Creek")
+
+nu_wa = data.frame(pop, wa)
+
+source("R\\srep_wa_analysis_predict.R")
+
+nu_srep <- srep_est(nu_wa)
+names(nu_srep) <- c(unique(nu_wa$pop))
+nu_srep <- nu_srep[sample(nrow(nu_srep), 1000),] #srep posterior, 1000 samples each per population
+
+###Estimate beta posterior from nu_srep posterior###
 post <- readRDS("data\\post.rds")
 
-rws <- sample(x = 1:30000, size = 1000, replace = F)
+srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
-post_nic <- post[rws,] %>% arrange(beta)
+alpha_prime <- rep(post$alpha_prime, length(unique(nu_wa$pop)))
+alpha <- rep(post$alpha, length(unique(nu_wa$pop)))
+sigma <- rep(post$sigma, length(unique(nu_wa$pop)))
 
+srep_post$alpha_prime <- alpha_prime
+srep_post$alpha <- ifelse(alpha > 0, alpha, 0)
+srep_post$sigma <- sigma
 
+nu_beta <- srep_post %>% mutate(srep = value,
+                     beta = alpha_prime/srep) %>%
+  dplyr::select(alpha, beta, sigma, pop)
 
-#Tau for age variance and mean proportions at age (3,4,5)
+nu_post <- post %>%
+  mutate(pop = "Nicola River",
+         alpha = ifelse(alpha > 0, alpha, 0)) %>% 
+  dplyr::select(alpha, beta, sigma, pop)
+
+sim_post <- rbind(nu_beta, nu_post) #full posterior to feed to the simulation
+
+###Tau for age variance and mean proportions at age (3,4,5)###
 ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
                    p4 = a4/(a3 + a4 + a5),
                    p5 = a5/(a3 + a4 + a5)) %>% dplyr::select(p3, p4, p5)
 
 source("R\\age_tau.R")
 
-tau <- tau_comp(ppnMat)$tau
-m_props <- tau_comp(ppnMat)$pa
+tau <- tau_comp(ppnMat)$tau #tau 
+m_props <- tau_comp(ppnMat)$pa #mean age proportions
 
 ```
 
+
+When calculating beta from srep for the posterior, use alpha prime to back-calculate to beta from the predicted SREPs from the habitat model
+
+Note that HO recruits are added to the total recruit number, and are part of the spawner escapement contributing to the next generation, but excluded from the spawner escapement abundance used to estimate stock status in the simulations.
 
 ```{r sim input files}
 
