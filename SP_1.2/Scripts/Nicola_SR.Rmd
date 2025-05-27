@@ -18,6 +18,7 @@ library(pkgbuild)
 library(boot)
 library(loo)
 library(MASS)
+library(dglm)
 #install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
 #remotes::install_github("Pacific-salmon-assess/samSim")  
 library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
@@ -41,7 +42,25 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 
 ```
 
+
 Note that hatchery spawners are baked into the SR analysis... Hatchery spawners included with total spawners, but not included in the recruits for the model. This means that we are not considering the differential productivity between hatchery and NO spawners in these analyses.
+```{r, hatchery scalar estimation}
+
+nic_dat$hatchery_spawners=nic_dat$total_spawners-nic_dat$no_spawners #hatchery spawner abundance
+nic_dat$p_hatch_no=nic_dat$hatchery_spawners/nic_dat$no_spawners #ratio of hatchery:natural origin spawners
+
+#estimate gamma distribution parameters
+fit<- dglm::dglm(nic_dat$p_hatch_no~1,family=Gamma(link='log'))
+mu<- exp(fit$coefficients[1])
+shape<- exp(fit$dispersion.fit$coefficients[1])
+scale<- mu/shape
+max_hsp<- max(nic_dat$hatchery_spawners)
+par(mfrow=c(1,2))
+hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
+hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
+
+```
+
 
 ```{r ricker model}
 
