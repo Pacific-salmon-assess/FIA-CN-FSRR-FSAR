@@ -118,7 +118,14 @@ Note that HO recruits are added to the total recruit number, and are part of the
 
 ```{r sim input files}
 
+simPar <- read.csv("data\\samsim pars\\SimPars.csv")
+CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
+recoverySim(
+  simPar = simPar,
+  cuPar = cuPar,
+  srDat = 
+)
 
 
 
