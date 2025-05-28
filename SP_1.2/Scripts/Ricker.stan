@@ -8,7 +8,7 @@ data {
   }
 parameters {
   real<lower=0> Smax;       //capacity - spawners that maximizes recruitment
-  real alpha;      //population-specific Ricker alpha parameter
+  real<lower=0> alpha;      //population-specific Ricker alpha parameter
   real gamma;               //population-specific survival index parameter
   real<lower=0> sigma;      //population-specific SD within the autocorrelated process
   real surv_est;            //estimating 1992 survival as the hatchery smolts released from the 1992 brood had a mixobacterial infection that caused high mortality rates
@@ -34,11 +34,11 @@ model {
   lrs[1] ~ normal(mu[1], sigma);
   for(i in 2:N)lrs[i] ~ normal(mu[i], sigma_AR);
   
-  Smax ~ lognormal(8.5,1); //change this to something
-  alpha ~ normal(1,5);
-  gamma ~ normal(0, 10);
+  Smax ~ normal(5e3,1e4); //change this to something
+  alpha ~ normal(1,1);
+  gamma ~ normal(0, 1);
   surv_est ~ normal(0, 1);
-  sigma ~ cauchy(0, 5);
+  sigma ~ cauchy(0, 2);
 
   //autocorrelation term
   rho ~ uniform(-1,1);
