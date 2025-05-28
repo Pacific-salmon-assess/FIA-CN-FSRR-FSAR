@@ -1,6 +1,6 @@
 manUnit,stkName,stk,model,minER,maxER,cvER,usERScalar,canERScalar,tauCycAge,alpha,beta0,sigma,sigmaProd,coef1,covarInit,mu_logCovar1,sig_logCovar1,min_logCovar,max_logCovar,aveGenTime,ageFirstRec,ageMaxRec,larkAlpha,larkBeta0,larkBeta1,larkBeta2,larkBeta3,larkSigma,meanRec2,meanRec3,meanRec4,meanRec5,meanRec6,medianRec,lowQRec,highQRec,meanDBE,sdDBE,medMA,meanForecast,sdForecast,shape.hatch,scale.hatch,max.hatchery.spawners
-FraserCN,Nicola River,1,ricker,0,0.5,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,0,0,1,-5.914504,-2.701571,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,5019,4349,5562,NA,NA,NA,NA,NA,1.030953,0.5832901,5665
-FraserCN,Bonaparte River,2,ricker,0,0.5,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,0,0,1,,,,,,,,,,,,,,,,,,,,,,,,,,,
-FraserCN,Deadmane River,3,ricker,0,0.5,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,0,0,1,,,,,,,,,,,,,,,,,,,,,,,,,,,
-FraserCN,Louis Creek,4,ricker,0,0.5,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,0,0,1,,,,,,,,,,,,,,,,,,,,,,,,,,,
-FraserCN,Bessette Creek,5,ricker,0,0.5,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,0,0,1,,,,,,,,,,,,,,,,,,,,,,,,,,,
+FraserCN,Nicola River,1,ricker,0.005,0.95,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,NA,NA,NA,NA,NA,NA,NA,NA,1.030953,0.5832901,5665
+FraserCN,Bonaparte River,2,ricker,0.005,0.95,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Deadmane River,3,ricker,0.005,0.95,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Louis Creek,4,ricker,0.005,0.95,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Bessette Creek,5,ricker,0.005,0.95,0.25,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.2,0.6,0.2,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
