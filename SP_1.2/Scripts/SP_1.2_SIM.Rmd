@@ -83,21 +83,28 @@ srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arran
 alpha_prime <- rep(post$alpha_prime, length(unique(nu_wa$pop)))
 alpha <- rep(post$alpha, length(unique(nu_wa$pop)))
 sigma <- rep(post$sigma, length(unique(nu_wa$pop)))
+gamma <- rep(post$gamma, length(unique(nu_wa$pop)))
 
 srep_post$alpha_prime <- alpha_prime
 srep_post$alpha <- ifelse(alpha > 0, alpha, 0)
 srep_post$sigma <- sigma
+srep_post$gamma <- gamma
 
 nu_beta <- srep_post %>% mutate(srep = value,
                      beta = alpha_prime/srep) %>%
-  dplyr::select(alpha, beta, sigma, pop)
+  dplyr::select(alpha, beta, sigma, gamma, pop)
 
 nu_post <- post %>%
   mutate(pop = "Nicola River",
          alpha = ifelse(alpha > 0, alpha, 0)) %>% 
-  dplyr::select(alpha, beta, sigma, pop)
+  dplyr::select(alpha, beta, sigma, gamma, pop)
 
-sim_post <- rbind(nu_beta, nu_post) #full posterior to feed to the simulation
+sim_post <- rbind(nu_beta, nu_post) %>% 
+  mutate(stk = ifelse(pop == "Nicola River", 1,
+                      ifelse(pop == "Bonaparte River", 2,
+                             ifelse(pop == "Deadman River", 3,
+                                    ifelse(pop == "Louis Creek", 4, 5))))) %>% 
+  dplyr::select(stk, alpha, beta, sigma)#full posterior to feed to the simulation
 
 ###Tau for age variance and mean proportions at age (3,4,5)###
 ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
@@ -122,9 +129,11 @@ simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
 recoverySim(
-  simPar = simPar,
-  cuPar = cuPar,
-  srDat = 
+  simPar = simPar[1,],
+  cuPar = CUPar,
+  ricPars = sim_post,
+  nTrials = 100,
+  dirName = here('outputs')
 )
 
 

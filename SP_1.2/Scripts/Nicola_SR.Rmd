@@ -198,8 +198,9 @@ quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
 alpha <- as.vector(extract(fit)[2])
 beta <- as.vector(extract(fit)[1])
 sigma <- as.data.frame(extract(fit)[4])
+gamma <- as.data.frame(extract(fit)[3])
 alpha_prime <- as.data.frame(extract(fit)[14])
-post <- data.frame(alpha, beta, sigma, alpha_prime)
+post <- data.frame(alpha, beta, sigma, gamma, alpha_prime)
 
 poste <- post[sample(nrow(post), 1000),]
 
