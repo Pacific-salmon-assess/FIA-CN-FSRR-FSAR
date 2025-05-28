@@ -19,7 +19,8 @@ library(boot)
 library(loo)
 library(MASS)
 #install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
-#remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk", force=TRUE)
+#remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk-hatch", force=TRUE)
+
 library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
 
 pkgbuild::has_build_tools(debug = TRUE)
