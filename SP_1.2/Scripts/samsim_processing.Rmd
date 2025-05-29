@@ -1,0 +1,54 @@
+---
+title: "Simulation - post processing"
+author: "C. Bailey"
+date: "5/29/2025"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, read in scenario outputs}
+
+simPar <- read.csv("data\\samsim pars\\SimPars.csv")
+CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
+
+hcrDatalist<-list()
+srData<- list()
+for(a in seq_len(nrow(simPar))){
+  
+  
+   hcrDatalist[[a]] <- readRDS(paste0("./outputs/SamSimOutputs/simData/",
+   simPar$nameOM[a],"/", 
+   simPar$scenario[a],"/",
+   paste(simPar$nameOM[a],"_", simPar$nameMP[a], "_", "CU_HCR_PM.RData",sep="")))$hcrDatout
+
+   hcrDatalist[[a]]$scenario<-simPar$scenario[a]
+   hcrDatalist[[a]]$nameOM<-simPar$nameOM[a]
+   hcrDatalist[[a]]$nameMP<-simPar$nameMP[a]
+
+
+   srData[[a]] <- readRDS(paste0("./outputs/SamSimOutputs/simData/", 
+                         simPar$nameOM[a],"/",
+                         simPar$scenario[a],"/",
+                         paste(simPar$nameOM[a],"_", simPar$nameMP[a], "_", "CUsrDat.RData",sep="")))$srDatout
+
+
+  srData[[a]]$scenario<-simPar$scenario[a]
+  srData[[a]]$nameOM<-simPar$nameOM[a]
+  srData[[a]]$nameMP<-simPar$nameMP[a]
+}
+
+hcrdat <- do.call(rbind,hcrDatalist)
+srdat<- do.call(rbind,srData)
+
+hcrdat<-hcrdat[hcrdat$year>50,] #remove burn-in period
+srdat<-srdat[srdat$year>50,]
+
+#hcrdat maybe not needed - has catch statistics though
+hcrdat=hcrdat[order(hcrdat$scenario,hcrdat$iteration,hcrdat$CU,hcrdat$year),]
+srdat=srdat[order(srdat$scenario,srdat$iteration,srdat$CU,srdat$year),]
+
+```

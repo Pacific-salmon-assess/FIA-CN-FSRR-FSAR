@@ -61,7 +61,7 @@ dat <- bind_rows(dat_simp, dat_bess)
 
 source("R\\pop_cor.R")
 
-corr <- pop_cor(dat) #population correlation matrix
+pcor <- pop_cor(dat) #population correlation matrix
 
 ###Estimate srep from watershed areas for populations without beta estimates###
 wa = c(3499, 890, 519, 388)
@@ -81,9 +81,9 @@ post <- readRDS("data\\post.rds")
 srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
 alpha_prime <- rep(post$alpha_prime, length(unique(nu_wa$pop)))
-alpha <- rep(post$alpha, length(unique(nu_wa$pop)))
-sigma <- rep(post$sigma, length(unique(nu_wa$pop)))
-gamma <- rep(post$gamma, length(unique(nu_wa$pop)))
+alpha <- rep(sample(post$alpha,1e3), length(unique(nu_wa$pop)))
+sigma <- rep(sample(post$sigma,1e3), length(unique(nu_wa$pop)))
+gamma <- rep(sample(post$gamma,1e3), length(unique(nu_wa$pop)))
 
 srep_post$alpha_prime <- alpha_prime
 srep_post$alpha <- ifelse(alpha > 0, alpha, 0)
@@ -105,6 +105,8 @@ sim_post <- rbind(nu_beta, nu_post) %>%
                              ifelse(pop == "Deadman River", 3,
                                     ifelse(pop == "Louis Creek", 4, 5))))) %>% 
   dplyr::select(stk, alpha, beta, sigma)#full posterior to feed to the simulation
+
+sim_post=sim_post[order(sim_post$stk),]
 
 ###Tau for age variance and mean proportions at age (3,4,5)###
 ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
@@ -128,13 +130,16 @@ Note that HO recruits are added to the total recruit number, and are part of the
 simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
-recoverySim(
-  simPar = simPar[1,],
+for(u in 1:nrow(simPar)){
+genericRecoverySim(
+  simPar = simPar[u,],
   cuPar = CUPar,
   ricPars = sim_post,
   nTrials = 100,
-  dirName = here('outputs')
+  cuCustomCorrMat = pcor,
+  outDir = here::here('outputs')
 )
+}
 
 
 
