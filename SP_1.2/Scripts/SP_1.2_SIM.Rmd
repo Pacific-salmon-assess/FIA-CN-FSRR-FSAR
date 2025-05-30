@@ -80,10 +80,10 @@ post <- readRDS("data\\post.rds")
 
 srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
-alpha_prime <- rep(post$alpha_prime, length(unique(nu_wa$pop)))
-alpha <- rep(sample(post$alpha,1e3), length(unique(nu_wa$pop)))
-sigma <- rep(sample(post$sigma,1e3), length(unique(nu_wa$pop)))
-gamma <- rep(sample(post$gamma,1e3), length(unique(nu_wa$pop)))
+alpha_prime <- c(sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3))
+alpha <- c(sample(post$alpha,1e3),sample(post$alpha,1e3),sample(post$alpha,1e3),sample(post$alpha,1e3))
+sigma <- c(sample(post$sigma,1e3),sample(post$sigma,1e3),sample(post$sigma,1e3),sample(post$sigma,1e3))
+gamma <- c(sample(post$gamma,1e3),sample(post$gamma,1e3),sample(post$gamma,1e3),sample(post$gamma,1e3))
 
 srep_post$alpha_prime <- alpha_prime
 srep_post$alpha <- ifelse(alpha > 0, alpha, 0)
