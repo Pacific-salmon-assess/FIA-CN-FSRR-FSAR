@@ -80,15 +80,20 @@ post <- readRDS("data\\post.rds")
 
 srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
-alpha_prime <- c(sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3),sample(post$alpha_prime,1e3))
-alpha <- c(sample(post$alpha,1e3),sample(post$alpha,1e3),sample(post$alpha,1e3),sample(post$alpha,1e3))
-sigma <- c(sample(post$sigma,1e3),sample(post$sigma,1e3),sample(post$sigma,1e3),sample(post$sigma,1e3))
-gamma <- c(sample(post$gamma,1e3),sample(post$gamma,1e3),sample(post$gamma,1e3),sample(post$gamma,1e3))
+#creating alpha-sigma-gamma-alpha_prime posterior for Bonaparte, Deadman, Louis and Bessette
+bt <- post[sample(nrow(post), 1000),]
+dm <- post[sample(nrow(post), 1000),]
+ls <- post[sample(nrow(post), 1000),]
+bs <- post[sample(nrow(post), 1000),]
 
-srep_post$alpha_prime <- alpha_prime
-srep_post$alpha <- ifelse(alpha > 0, alpha, 0)
-srep_post$sigma <- sigma
-srep_post$gamma <- gamma
+h1 <- rbind(bt,dm)
+h2 <- rbind(ls,bs)
+w <- rbind(h1,h2) %>% dplyr::select(-beta)
+
+srep_post$alpha_prime <- w$alpha_prime
+srep_post$alpha <- ifelse(w$alpha > 0, w$alpha, 0)
+srep_post$sigma <- w$sigma
+srep_post$gamma <- w$gamma
 
 nu_beta <- srep_post %>% mutate(srep = value,
                      beta = alpha_prime/srep) %>%
