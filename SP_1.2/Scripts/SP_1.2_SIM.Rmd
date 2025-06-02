@@ -46,6 +46,7 @@ head(age_dat)
 
 ```{r sim data prep}
 
+
 ###Escapement correlation### - filter out pops with high hatchery influence & no NO estimates, and filter out years with NAs
 `%!in%` <- Negate(`%in%`)
 dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
@@ -113,6 +114,35 @@ sim_post <- rbind(nu_beta, nu_post) %>%
 
 sim_post=sim_post[order(sim_post$stk),]
 
+#mainpulate the posterior into 11 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
+#note that alpha values are based on the 95% CI of alpha from the Nicola SR function, where more values of alpha are tested closer to the median of the posterior (where the greatest confidence in the estimate of alpha lays)
+
+fit <- readRDS("SP_1.2//Results/fit.rds")
+quants <- c(0.15, 0.25, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.75, 0.85)
+alpha_nu <- unlist(as.vector(extract(fit)[2])) %>% 
+  quantile(probs = quants)
+
+sim_post_a15 <- rep(99, 1000)
+sim_post_a25 <- rep(99, 1000)
+sim_post_a35 <- rep(99, 1000)
+sim_post_a40 <- rep(99, 1000)
+sim_post_a45 <- rep(99, 1000)
+sim_post_a50 <- rep(99, 1000)
+sim_post_a55 <- rep(99, 1000)
+sim_post_a60 <- rep(99, 1000)
+sim_post_a65 <- rep(99, 1000)
+sim_post_a75 <- rep(99, 1000)
+sim_post_a85 <- rep(99, 1000)
+
+sim_post_vars <- list(sim_post_a15,sim_post_a25,sim_post_a35,sim_post_a40,sim_post_a45,sim_post_a50,sim_post_a55,sim_post_a60,sim_post_a65,sim_post_a75,sim_post_a85)
+
+for(i in 1:length(alpha_nu)){
+  sim_post_vars[[i]] <- sim_post %>% mutate(srep = alpha/beta,
+                                    alpha = alpha_nu[i],
+                                    beta = alpha/srep) %>% dplyr::select(-srep)
+}
+
+
 ###Tau for age variance and mean proportions at age (3,4,5)###
 ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
                    p4 = a4/(a3 + a4 + a5),
@@ -135,16 +165,19 @@ Note that HO recruits are added to the total recruit number, and are part of the
 simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
-for(u in 1:nrow(simPar)){
-genericRecoverySim(
-  simPar = simPar[u,],
-  cuPar = CUPar,
-  ricPars = sim_post,
-  nTrials = 100,
-  cuCustomCorrMat = pcor,
-  outDir = here::here('outputs')
-)
+for(k in 1:length(alpha_nu)){
+  for(u in 1:nrow(simPar)){
+    genericRecoverySim(
+      simPar = simPar[u,],
+      cuPar = CUPar,
+      ricPars = sim_post_vars[[k]],
+      nTrials = 100,
+      cuCustomCorrMat = pcor,
+      outDir = here::here(paste('outputs', quants[k], sep = "")))
+    }
 }
+
+
 
 
 
