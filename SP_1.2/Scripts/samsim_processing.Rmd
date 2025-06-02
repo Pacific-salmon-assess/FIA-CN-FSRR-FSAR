@@ -52,6 +52,42 @@ for(k in 1:length(quants)){
    srdat_aq[[k]] <- srdat
 }
 
+sim_out <- bind_rows(srdat_aq, .id = "column_label")
 
+```
+
+Currently, the simulation outputs are broken out at the individual population level. They need to be summarized at the CU level, and then evaluated against sgen or 1500, whichever is higher for each CU (Lower Thompson SP 1.2 will be sgen, and Bessette SP 1.2 will be 1500). The success of each trial examines the probability of the geometric mean of the last generation of the simulation (4 years in this case) exceeding 1500 or sgen depending on the CU. Summaries will also note the probability of 1 or more subpopulations becoming extirpated during simulation.
+
+Lower Thompson sgen = 1920 + 1076 = 2996    ***note -> 1076 added because previous run of the rapid status scanner did not include the Nicola stock sgen due to hatchery influence***
+
+Bessette sgen... small population with poor contrast in S-R data, so default to 1500 as the lower benchmark
+
+```{r sim output summarization}
+
+sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
+                              wildSpawners = ifelse(wildSpawners < 0, 0, wildSpawners),
+                              hatcherySpawners = ifelse(hatcherySpawners < 0, 0, hatcherySpawners),
+                              return = ifelse(CU == 1, wildSpawners, spawners))
+
+sim_sum_subpop <- sim_sum %>% group_by(CU, alpha, targetER, scenario, iteration, year) %>% 
+   filter(year %in% c(59:62)) %>% 
+   group_by(CU, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(return)))) %>% 
+   mutate(subpop_extant = ifelse(geo_mean_gen == 0, 0, 1)) %>% 
+   group_by(CU, alpha, targetER, scenario) %>%
+   summarize(p_extant = mean(subpop_extant))
+
+sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
+   summarize(cu_return = sum(return)) %>% 
+   filter(year %in% c(59:62)) %>% 
+   group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
+   mutate(cu_extant = ifelse(geo_mean_gen == 0, 0, 1),
+          cu_success = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
+                           ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
+                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2996, 1, 0)))) %>% 
+   group_by(CU_ID, alpha, targetER, scenario) %>%
+   summarize(p_extant = mean(cu_extant),
+             p_success = mean(cu_success))
 
 ```
