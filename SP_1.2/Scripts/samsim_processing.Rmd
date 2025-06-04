@@ -98,7 +98,7 @@ sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, 
 
 ```
 
-***issues*** need to re-order the legends and try to force all colours to appear in the legends
+
 ```{r sim results vis}
 
 Ccols1 <- c("Very Low (0.00-0.04)" = "#009E73",
