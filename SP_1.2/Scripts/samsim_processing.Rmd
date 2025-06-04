@@ -7,23 +7,31 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
 ```
 
 
 ```{r, read in scenario outputs}
 
+#retrieving the basic simulation parameterization
 simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
-quants <- c(0.15, 0.25, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.75, 0.85)
+#regenerating alpha_nu to extract the simultation results from the output folders
+fit <- readRDS("SP_1.2//Results/fit.rds")
+CI_80 <- quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.1, 0.9))
+alpha_nu <- seq(from = CI_80[1], to = CI_80[2], by = 0.0888)
 
+#creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
 
-for(k in 1:length(quants)){
+#extracting the dataframes of results
+for(k in 1:length(alpha_nu)){
    hcrDatalist<-list()
    srData<- list()
    for(a in seq_len(nrow(simPar))){
-      hcrDatalist[[a]] <- readRDS(paste("./outputs",quants[k],"/SamSimOutputs/simData/",
+      hcrDatalist[[a]] <- readRDS(paste("./outputs",alpha_nu[k],"/SamSimOutputs/simData/",
                                          simPar$nameOM[a],"/", 
                                          simPar$scenario[a],"/",
                                          paste(simPar$nameOM[a],"_", simPar$nameMP[a], "_",
@@ -32,7 +40,7 @@ for(k in 1:length(quants)){
       hcrDatalist[[a]]$nameOM<-simPar$nameOM[a]
       hcrDatalist[[a]]$nameMP<-simPar$nameMP[a]
       
-      srData[[a]] <- readRDS(paste("./outputs",quants[k],"/SamSimOutputs/simData/", 
+      srData[[a]] <- readRDS(paste("./outputs",alpha_nu[k],"/SamSimOutputs/simData/", 
                          simPar$nameOM[a],"/",
                          simPar$scenario[a],"/",
                          paste(simPar$nameOM[a],"_", simPar$nameMP[a], "_", "CUsrDat.RData",sep=""), sep=""))$srDatout
@@ -52,6 +60,7 @@ for(k in 1:length(quants)){
    srdat_aq[[k]] <- srdat
 }
 
+#converting from a list of dataframes to a single comprehensive dataframe
 sim_out <- bind_rows(srdat_aq, .id = "column_label")
 
 ```
@@ -70,24 +79,126 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
                               return = ifelse(CU == 1, wildSpawners, spawners))
 
 sim_sum_subpop <- sim_sum %>% group_by(CU, alpha, targetER, scenario, iteration, year) %>% 
-   filter(year %in% c(59:62)) %>% 
+   filter(year %in% c(62)) %>% 
    group_by(CU, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(return)))) %>% 
-   mutate(subpop_extant = ifelse(geo_mean_gen == 0, 0, 1)) %>% 
+   mutate(subpop_extinct = ifelse(return == 0, 1, 0)) %>% 
    group_by(CU, alpha, targetER, scenario) %>%
-   summarize(p_extant = mean(subpop_extant))
+   summarize(p_extinct = mean(subpop_extinct))
 
 sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
    filter(year %in% c(59:62)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
-   mutate(cu_extant = ifelse(geo_mean_gen == 0, 0, 1),
-          cu_success = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
-                           ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2996, 1, 0)))) %>% 
+   mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 0,
+                           ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 1,
+                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2996, 0, 1)))) %>% 
    group_by(CU_ID, alpha, targetER, scenario) %>%
-   summarize(p_extant = mean(cu_extant),
-             p_success = mean(cu_success))
+   summarize(p_fail = mean(cu_fail))
+
+```
+
+***issues*** need to re-order the legends and try to force all colours to appear in the legends
+```{r sim results vis}
+
+Ccols1 <- c("Very Low (0.00-0.04)" = "#009E73",
+           "Low (0.05-0.24)" = "#56B4E9", 
+           "Moderate (0.25-0.49)" = "#CC79A7", 
+           "Moderately High (0.50-0.74)" = "#F0E442",
+           "High (0.75-0.94)" = "#E69F00",
+           "Very High (0.95-1.00)" = "#D55E00")
+
+Ccols2 <- c("Very Low (0.00-0.04)" = "#009E73",
+           "Low (0.05-0.24)" = "#0072B2", 
+           "Moderate (0.25-0.49)" = "#56B4E9", 
+           "Moderately High (0.50-0.74)" = "#CC79A7",
+           "High (0.75-0.94)" = "#F0E442",
+           "Very High (0.95-1.00)" = "#D55E00")
+
+Ccols3 <- c("Very Low (0.00-0.04)" = "darkgreen",
+           "Low (0.05-0.24)" = "greenyellow", 
+           "Moderate (0.25-0.49)" = "yellow", 
+           "Moderately High (0.50-0.74)" = "orange",
+           "High (0.75-0.94)" = "red",
+           "Very High (0.95-1.00)" = "darkred")
+
+Ccols4 <- c("Very Low (0.00-0.04)" = "#4dac26",
+           "Low (0.05-0.24)" = "#b8e186", 
+           "Moderate (0.25-0.49)" = "#f7f7f7", 
+           "Moderately High (0.50-0.74)" = "#f1b6da",
+           "High (0.75-0.94)" = "#d01c8b",
+           "Very High (0.95-1.00)" = "mediumpurple4")
+
+
+Ccols <- Ccols4
+
+cu_names <- as_labeller(c(`1` = "Nicola River", `2` = "Bonaparte River", `3` = "Deadman River", `4` = "Louis Creek",
+                          `5` = "Bessette Creek"))
+
+sim_sum_subpop %>% mutate(extinct = ifelse(p_extinct <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_extinct > 0.04 & p_extinct <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_extinct > 0.24 & p_extinct <= 0.49, "Moderate (0.25-0.49)",
+                                                        ifelse(p_extinct > 0.49 & p_extinct <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_extinct > 0.74 & p_extinct <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = extinct, fill = extinct))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   labs(y = "Exploitation rate")+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(extinct)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
+                                "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = FALSE,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
+                                "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
+                                          name = "Standardized smolt-to-adult survival index\n(SD away from mean)",
+                                          breaks = c(-1, -0.5, 0, 0.5, 1, 1.5)),
+                      name = "Productivity [log(alpha)]", expand = c(0,0),
+                      breaks = c(0.25, 0.5, 0.75, 1.25, 1.00))+
+   scale_y_continuous(expand = c(0,0))+
+   theme(legend.position = "top", legend.text = element_text(size = 10),
+        legend.title = element_text(size = 13)) +
+   guides(fill = guide_legend(ncol = 1),
+          title.position = "top")+
+   theme_classic()+
+   facet_wrap(.~CU,
+              ncol = 2,
+              labeller = cu_names)
+  
+
+CU_ID_names <- as_labeller(c("bst" = "Bessette Creek", "lth" = "Lower Thompson"))
+
+sim_sum_CU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderate (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(CU below 1500 or Sgen)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
+                                "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
+                                "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
+                                          name = "Standardized smolt-to-adult survival index\n(SD away from mean)",
+                                          breaks = c(-1, -0.5, 0, 0.5, 1, 1.5)),
+                      name = "Productivity [log(alpha)]", expand = c(0,0),
+                      breaks = c(0.25, 0.5, 0.75, 1.25, 1.00)) +
+   scale_y_continuous(expand = c(0,0))+
+   theme(legend.position = "top", legend.text = element_text(size = 10),
+        legend.title = element_text(size = 13)) +
+  guides(fill = guide_legend(ncol = 1), title.position = "top") +
+  labs(y = "Exploitation rate", x = "Productivity [log(alpha)]") + 
+   facet_wrap(. ~ CU_ID,
+              nrow = 2,
+              labeller = CU_ID_names)+
+   theme_classic()
+
+
 
 ```

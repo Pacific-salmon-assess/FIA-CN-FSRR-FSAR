@@ -5,6 +5,7 @@ date: "2025-04-15"
 output: html_document
 ---
 
+This code chunk loads the required packages and the data. 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -19,9 +20,6 @@ library(boot)
 library(loo)
 library(MASS)
 library(dglm)
-#install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
-#remotes::install_github("Pacific-salmon-assess/samSim")  
-library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
 
 pkgbuild::has_build_tools(debug = TRUE)
 
@@ -34,6 +32,7 @@ head(nic_dat)
 ```
 
 
+A quick data visualization of the stock-recruit information for the Nicola River Chinook stock.
 ```{r data vis}
 
 nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
@@ -43,31 +42,14 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 ```
 
 
-Note that hatchery spawners are baked into the SR analysis... Hatchery spawners included with total spawners, but not included in the recruits for the model. This means that we are not considering the differential productivity between hatchery and NO spawners in these analyses.
-```{r, hatchery scalar estimation}
-
-nic_dat$hatchery_spawners=nic_dat$total_spawners-nic_dat$no_spawners #hatchery spawner abundance
-nic_dat$p_hatch_no=nic_dat$hatchery_spawners/nic_dat$no_spawners #ratio of hatchery:natural origin spawners
-
-#estimate gamma distribution parameters
-fit<- dglm::dglm(nic_dat$p_hatch_no~1,family=Gamma(link='log'))
-mu<- exp(fit$coefficients[1])
-shape<- exp(fit$dispersion.fit$coefficients[1])
-scale<- mu/shape
-max_hsp<- max(nic_dat$hatchery_spawners)
-par(mfrow=c(1,2))
-hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
-hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
-
-```
-
-
+This code chunk runs a Ricker stock-recruit model using Stan that incorporates a hatchery-based smolt-to-adult survival index covariate. The model also includes a temporal autocorrelation term. The smolt-to-adult survival index is logit-transformed and standardized. Note that hatchery-origin spawners are included in the total spawners generating recruits, but only natural-origin recruits are used in the model. In addition, the model estimates the first year of smolt-to-adult survival because of a disease issue at Spius Creek Hatchery that severely-reduced smolt survival that year.
 ```{r ricker model}
 
 #creating the list of data to feed to Stan
 dat <- list("N" = nrow(nic_dat),                  #number of years of data
-            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) / sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
-            "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin recruits per spawner (HO & NO)
+            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
+              sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
             "S" = nic_dat$total_spawners, #vector of total spawner abundance
             "mlogit_surv" = 0) #mean logit-transformed survival
 
@@ -75,7 +57,8 @@ dat <- list("N" = nrow(nic_dat),                  #number of years of data
 fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
                     iter=10000, cores=6, thin = 1,
                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy", "umsy", "alpha_prime", "srep_prime"))
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
+                           "umsy", "alpha_prime", "srep_prime"))
 
 #fit summary
 out <- summary(fit)
@@ -88,6 +71,7 @@ out <- readRDS("SP_1.2//Results/out.rds")
 ```
 
 
+This code chunk visualizes the results of the Stan model, includes diagnostic plots, and estimates Sgen for the Nicola River Chinook stock.
 ```{r results vis}
 
 #mean prediction functions for Ricker with SAS index covariate
@@ -166,32 +150,32 @@ nic_dat %>% ggplot(aes(x = brood_year, y = log(no_recruits/total_spawners) - pre
 theta = data.frame(alpha = as.vector(alpha), beta = as.vector(beta), sigma = as.vector(extract(fit)[4]))
 sMSY = ifelse(unlist(data.frame(as.vector(extract(fit)[12]))) > 0, unlist(data.frame(as.vector(extract(fit)[12]))), 0)
 
-#calculating sgen for each iteration of both models
+#calculating sgen for each iteration of the Stan model
 sgen <- matrix(nrow = nrow(theta), ncol = 1)
 for(i in 1:nrow(theta)){
   sgen[i] <- sGenSolver(unlist(theta[i,]), sMSY[i])
   }
 
 quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
-quantile(sMSY, probs = c(0.025, 0.5, 0.975))
 
-sGenDirect <- function(loga, b){
- sMSY <- ( 1 - gsl::lambert_W0 (exp ( 1 - loga) ) ) / b
- a <- exp(loga)
- -1/b*gsl::lambert_W0(-b*sMSY/a)
-}
-
-sgen <- matrix(nrow = nrow(theta), ncol = 1)
-for(i in 1:nrow(theta)){
-  sgen[i] <- sGenDirect(unlist(theta[i,1]), unlist(theta[i,2]))
-}
+# #alternative method for calculating Sgen
+# sGenDirect <- function(loga, b){
+#  sMSY <- ( 1 - gsl::lambert_W0 (exp ( 1 - loga) ) ) / b
+#  a <- exp(loga)
+#  -1/b*gsl::lambert_W0(-b*sMSY/a)
+# }
+# 
+# sgen <- matrix(nrow = nrow(theta), ncol = 1)
+# for(i in 1:nrow(theta)){
+#   sgen[i] <- sGenDirect(unlist(theta[i,1]), unlist(theta[i,2]))
+# }
 
 #95% CI and median sgen value for Nicola River
-quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
+#quantile(unlist(sgen), probs = c(0.025, 0.5, 0.975))
 
 ```
 
-
+This code chunk extracts values from the posterior of the Nicola S-R model for use in the forward simulation (see SP_1.2_SIM.Rmd).
 ```{r extract posterior data for samsim}
 
 #drawing from the posterior distribution to show error in relationships
