@@ -97,8 +97,8 @@ source("R\\pop_cor.R")
 pcor <- pop_cor(dat) #population correlation matrix
 
 ###Estimate srep from watershed areas for populations without beta estimates###
-wa = c(3499, 890, 519, 388)
-pop = c("Bonaparte River", "Deadman River", "Louis Creek", "Bessette Creek")
+wa = c(4521, 3498.64, 889.64, 519.39, 276.21)
+pop = c("Nicola River", "Bonaparte River", "Deadman River", "Louis Creek", "Bessette Creek")
 
 nu_wa = data.frame(pop, wa)
 
@@ -111,7 +111,7 @@ nu_srep <- nu_srep[sample(nrow(nu_srep), 1000),] #srep posterior, 1000 samples e
 ###Estimate beta posterior from nu_srep posterior###
 post <- readRDS("data\\post.rds")
 
-srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
+srep_post <- nu_srep %>% dplyr::select(-`Nicola River`) %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
 #creating alpha-sigma-gamma-alpha_prime posterior for Bonaparte, Deadman, Louis and Bessette
 bt <- post[sample(nrow(post), 1000),]
@@ -146,13 +146,9 @@ sim_post <- rbind(nu_beta, nu_post) %>%
 
 sim_post=sim_post[order(sim_post$stk),]
 
-#manipulate the posterior into 14 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
-#note that alpha values are based on the 80% CI of alpha from the Nicola SR function
-
-fit <- readRDS("SP_1.2//Results/fit.rds")
-CI_80 <- quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.1, 0.9))
-alpha_nu <- seq(from = CI_80[1], to = CI_80[2], by = 0.0888)
-
+#manipulate the posterior into 17 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
+#note that alpha values are based on the 2 SD range in SAS 
+alpha_nu <- seq(from = 0.01, to = 1.61, by = 0.133)
 sim_post_vars <- list()
 
 for(i in 1:length(alpha_nu)){
@@ -212,7 +208,7 @@ for(k in 1:length(alpha_nu)){
       simPar = simPar[u,],
       cuPar = CUPar,
       ricPars = sim_post_vars[[k]],
-      nTrials = 100,
+      nTrials = 200,
       cuCustomCorrMat = pcor,
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }

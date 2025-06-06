@@ -1,0 +1,33 @@
+-check for super high (greater than 30000) spawners
+-check for really high ERs (greater than 0.9)
+
+
+
+
+For Bella:
+-get up to 2024 NO returns for Nicola
+-send you the new lower benchmarks for Bessette and Lth
+
+
+-send you the paper that justifies 20% of spawner capacity as a lower benchmark
+	-provide a few notes on why we want to make the switch from sgen
+-send you the invite list for the meeting
+-schedule the meeting ideally for the week of the 24th-27th of June, can do next week if earlier is not possible
+
+
+
+Friday June 20th - latest date to have the template ready and sent out for review
+
+
+
+Top Priority
+-talk to Syd about timelines on the Spring 1.2 verification
+
+
+
+
+
+Re-run simulation with new CU pars, new version of samSim, and 500 iterations once we are sure the input parameters are good to go
+Estimate the aggregate abundance at which 66% and 90% of iterations producer a geometric mean abundance for each CU that is above their LBMs/1500 fish
+Create 3rd figure at CU-level that show p(above LRP)
+Modify the first figure to show extinction risk at CU-level, not sub-pop level
