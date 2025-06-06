@@ -179,7 +179,8 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 ```
 
 
-Hatchery spawners are incorporated into the simulation analysis for the Nicola River sub-population. Hatchery spawners are included with total spawners contributing to the next generation of recruits, but are not included in the recruits for the simulation. This means that we are not considering the differential productivity between hatchery- and natural-origin spawners in these analyses. In addition, hatchery-origin spawners are not included in the CU spawner totals used to evaluate whether a CU is above its lower benchmark.
+Hatchery spawners are incorporated into the simulation analysis for the Nicola River sub-population. Hatchery spawners are included with total spawners contributing to the next generation of recruits, but are not included in the recruits or catch for the simulation. Hatchery additions are simulated as a ratio of the natural-origin spawners as random gamma deviates (see below), with a maximum number of potential additional hatchery spawners set to the observed maximum in the time-series (5665). Hatchery- and natural-origin spawners are assumed to have equivalent intrinsic productivity, which matches the empirical spawner-recruit curve (ie. where total spawners includes both natural-origin and hatchery spawners). Hatchery-origin spawners however are not included in the CU spawner totals used to evaluate whether a CU is above its lower benchmark.
+
 ```{r, hatchery scalar estimation}
 
 nic_dat$hatchery_spawners=nic_dat$total_spawners-nic_dat$no_spawners #hatchery spawner abundance
@@ -192,8 +193,8 @@ shape<- exp(fit$dispersion.fit$coefficients[1])
 scale<- mu/shape
 max_hsp<- max(nic_dat$hatchery_spawners)
 par(mfrow=c(1,2))
-hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
-hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
+hist(nic_dat$p_hatch_no,xlab='observed ratio of hatchery:natural origin spawners',main='')
+hist(rgamma(2000,shape=shape,scale=scale),xlab='simulated gamma distribution of ratios',main='')
 
 ```
 
