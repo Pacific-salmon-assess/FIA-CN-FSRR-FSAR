@@ -147,14 +147,14 @@ sim_sum_CU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols, 
-                     name = "P(CU > 1500 or 20% Smax)",
+                     name = "P(Conservation Unit\n> 1500 | 20% Smax)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt-to-adult survival index",
+                                          name = "Smolt survival index (%)",
                                           breaks = c(-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
                       breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5))+
@@ -169,16 +169,19 @@ sim_sum_CU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
               labeller = CU_ID_names)+
    theme_classic()+
     geom_segment(aes(x = -0.05, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", size = 1.2, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.01, y = 0.05, label = "Low ER scenario", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.167, label = "CYER limit", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.119, label = "CYER 3-yr mean", hjust = 0, size = 3)
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+
+ggsave(height = 6, width = 5.5, units = "in", filename = "sim_sum_CU.pdf")
+ggsave(height = 6, width = 5.5, units = "in", filename = "sim_sum_CU.png")
 
 
 #p(CU above QET)
@@ -191,14 +194,14 @@ sim_sum_CU_QET %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols, 
-                     name = "P(CU > QET)",
+                     name = "P(Conservation Unit >\nQuasi-Extinction Threshold)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt-to-adult survival index",
+                                          name = "Smolt survival index (%)",
                                           breaks = c(-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
                       breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5))+
@@ -213,16 +216,19 @@ sim_sum_CU_QET %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
               labeller = CU_ID_names)+
    theme_classic()+
     geom_segment(aes(x = -0.05, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", size = 1.2, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.01, y = 0.05, label = "Low ER scenario", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.167, label = "CYER limit", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.119, label = "CYER 3-yr mean", hjust = 0, size = 3)
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+
+ggsave(height = 6, width = 5.5, units = "in", filename = "sim_sum_CU_QET.pdf")
+ggsave(height = 6, width = 5.5, units = "in", filename = "sim_sum_CU_QET.png")
 
 #p(SMU above LBM)
 sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
@@ -234,14 +240,14 @@ sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols, 
-                     name = "P(SMU > LRP)",
+                     name = "P(Stock Management Unit\n> Limit Reference Point)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt-to-adult survival index",
+                                          name = "Smolt survival index (%)",
                                           breaks = c(-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
                       breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5))+
@@ -253,16 +259,19 @@ sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
   labs(y = "Canadian exploitation rate", x = "Productivity [log(alpha)]") + 
    theme_classic()+
     geom_segment(aes(x = -0.05, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", size = 1.2, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.01, y = 0.05, label = "Low ER scenario", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.167, label = "CYER limit", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.119, label = "CYER 3-yr mean", hjust = 0, size = 3)
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+
+ggsave(height = 3.5, width = 5.5, units = "in", filename = "sim_sum_SMU.pdf")
+ggsave(height = 3.5, width = 5.5, units = "in", filename = "sim_sum_SMU.png")
 
 ```
 
@@ -297,14 +306,14 @@ sim_sum_agg %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Both CUs > 20% Smax)",
+                     name = "P(Both Conservation Units\n> 20% Smax)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderate (0.25-0.49)", "Moderately High (0.50-0.74)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt-to-adult survival index",
+                                          name = "Smolt survival index (%)",
                                           breaks = c(-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
                       breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5))+
@@ -316,17 +325,19 @@ sim_sum_agg %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
   labs(y = "Canadian exploitation rate", x = "Productivity [log(alpha)]") + 
    theme_classic()+
     geom_segment(aes(x = -0.05, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = -0.05, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", size = 1.2, alpha = 0.1)+
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", size = 1.2, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.01, y = 0.05, label = "Low ER scenario", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.167, label = "CYER limit", hjust = 0, size = 3)+
-   annotate("text", x = 0.78 + 0.01, y = 0.119, label = "CYER 3-yr mean", hjust = 0, size = 3)
+                colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
 
+ggsave(height = 3.5, width = 5.5, units = "in", filename = "sim_sum_agg.pdf")
+ggsave(height = 3.5, width = 5.5, units = "in", filename = "sim_sum_agg.png")
 
 ```
 

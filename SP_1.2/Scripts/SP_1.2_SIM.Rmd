@@ -157,9 +157,7 @@ for(i in 1:length(alpha_nu)){
 }
 
 for(i in 1:length(alpha_nu)){
-  sim_post_vars[[i]] <- sim_post %>% mutate(srep = alpha/beta,
-                                    alpha = alpha_nu[i],
-                                    beta = alpha/srep) %>% dplyr::select(-srep)
+  sim_post_vars[[i]] <- sim_post %>% mutate(alpha = alpha_nu[i])
 }
 
 
