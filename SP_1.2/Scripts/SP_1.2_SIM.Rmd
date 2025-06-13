@@ -149,7 +149,7 @@ sim_post=sim_post[order(sim_post$stk),]
 
 #manipulate the posterior into 17 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
 #note that alpha values are based on the 2 SD range in SAS 
-alpha_nu <- seq(from = 0.01, to = 1.61, by = 0.133)
+alpha_nu <- seq(from = 0.15, to = 1.70, by = 0.125)
 sim_post_vars <- list()
 
 for(i in 1:length(alpha_nu)){
@@ -212,11 +212,6 @@ for(k in 1:length(alpha_nu)){
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }
 }
-
-
-
-
-
 
 ```
 
