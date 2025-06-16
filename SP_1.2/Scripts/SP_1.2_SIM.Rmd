@@ -107,7 +107,7 @@ source("R\\srep_wa_analysis_predict.R")
 
 nu_srep <- srep_est(nu_wa)
 names(nu_srep) <- c(unique(nu_wa$pop))
-nu_srep <- nu_srep[sample(nrow(nu_srep), 1000),] #srep posterior, 1000 samples each per population
+nu_srep <- nu_srep[sample(nrow(nu_srep), 30000),] #srep posterior, 1000 samples each per population
 
 ###Estimate beta posterior from nu_srep posterior###
 post <- readRDS("data\\post.rds")
@@ -115,10 +115,10 @@ post <- readRDS("data\\post.rds")
 srep_post <- nu_srep %>% dplyr::select(-`Nicola River`) %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop)
 
 #creating alpha-sigma-gamma-alpha_prime posterior for Bonaparte, Deadman, Louis and Bessette
-bt <- post[sample(nrow(post), 1000),]
-dm <- post[sample(nrow(post), 1000),]
-ls <- post[sample(nrow(post), 1000),]
-bs <- post[sample(nrow(post), 1000),]
+bt <- post[sample(nrow(post), 30000),]
+dm <- post[sample(nrow(post), 30000),]
+ls <- post[sample(nrow(post), 30000),]
+bs <- post[sample(nrow(post), 30000),]
 
 h1 <- rbind(bt,dm)
 h2 <- rbind(ls,bs)
@@ -149,17 +149,42 @@ sim_post=sim_post[order(sim_post$stk),]
 
 #manipulate the posterior into 17 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
 #note that alpha values are based on the 2 SD range in SAS 
-alpha_nu <- seq(from = 0.15, to = 1.70, by = 0.125)
+alpha_nu <- seq(from = 0.05, to = 1.7, by = 0.125)
+beta_nu <- list()
+b_ks <- c(7.142857,
+             (7.142857*2),
+             (7.142857*3),
+             (7.142857*4),
+             (7.142857*5),
+             (7.142857*6),
+             (7.142857*7),
+             (7.142857*8),
+             (7.142857*9),
+             (7.142857*10),
+             (7.142857*11),
+             (7.142857*12),
+             (7.142857*13)) * 0.01
+
+beta_nu[[1]] = sim_post[sim_post$beta < quantile(sim_post$beta, probs = c(b_ks[1])), 3:4]
+beta_nu[[14]] = sim_post[sim_post$beta > quantile(sim_post$beta, probs = c(b_ks[13])), 3:4]
+for(i in 2:(length(beta_nu) - 1)){
+  beta_nu[[i]] = sim_post[sim_post$beta >= quantile(sim_post$beta, probs = c(b_ks[i-1])) & 
+                            sim_post$beta < quantile(sim_post$beta, probs = c(b_ks[i])), 3:4]
+}
+
 sim_post_vars <- list()
 
 for(i in 1:length(alpha_nu)){
-  sim_post_vars[[i]] <- assign(paste("sim_post_a", alpha_nu[i], sep =""), rep(99, 1000))
+  sim_post_vars[[i]] <- assign(paste("sim_post_a", alpha_nu[i], sep =""), rep(99, 5000))
 }
 
 for(i in 1:length(alpha_nu)){
-  sim_post_vars[[i]] <- sim_post %>% mutate(alpha = alpha_nu[i])
+  sim_post_vars[[i]] <- sample_n(sim_post, 5000) %>% mutate(alpha = alpha_nu[i])
 }
 
+for(i in 1:length(sim_post_vars)){
+  sim_post_vars[[i]][,3:4] = sample_n(beta_nu[[i]], 5000)
+}
 
 ###Tau for age variance and mean proportions at age (3,4,5)###
 ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
@@ -198,16 +223,20 @@ Note that HO recruits are added to the total recruit number, and are part of the
 
 ```{r sim input files}
 
+
+###samSim struggles when too much of the posterior is sampled - must be some values of beta or sigma that it cannot handle
 simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
+#srDat <- read.csv("data\\samsim pars\\srDat.csv")
 
 for(k in 1:length(alpha_nu)){
   for(u in 1:nrow(simPar)){
     genericRecoverySim(
       simPar = simPar[u,],
       cuPar = CUPar,
+      #srDat = srDat,
       ricPars = sim_post_vars[[k]],
-      nTrials = 500,
+      nTrials = 2000,
       cuCustomCorrMat = pcor,
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }

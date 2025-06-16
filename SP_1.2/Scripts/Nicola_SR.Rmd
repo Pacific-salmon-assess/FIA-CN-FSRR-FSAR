@@ -46,25 +46,25 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 This code chunk runs a Ricker stock-recruit model using Stan that incorporates a hatchery-based smolt-to-adult survival index covariate. The model also includes a temporal autocorrelation term. The smolt-to-adult survival index is logit-transformed and standardized. Note that hatchery-origin spawners are included in the total spawners generating recruits, but only natural-origin recruits are used in the model. In addition, the model estimates the first year of smolt-to-adult survival because of a disease issue at Spius Creek Hatchery that severely-reduced smolt survival that year.
 ```{r ricker model}
 
-#creating the list of data to feed to Stan
-dat <- list("N" = nrow(nic_dat),                  #number of years of data
-            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
-              sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
-            "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
-            "S" = nic_dat$total_spawners, #vector of total spawner abundance
-            "mlogit_surv" = 0) #mean logit-transformed survival
-
-#running the Stan model
-fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
-                    iter=10000, cores=6, thin = 1,
-                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
-                           "umsy", "alpha_prime", "srep_prime"))
-
-#fit summary
-out <- summary(fit)
-saveRDS(fit, "SP_1.2//Results/fit.rds")
-saveRDS(out, "SP_1.2//Results/out.rds")
+# #creating the list of data to feed to Stan
+# dat <- list("N" = nrow(nic_dat),                  #number of years of data
+#             "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
+#               sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+#             "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
+#             "S" = nic_dat$total_spawners, #vector of total spawner abundance
+#             "mlogit_surv" = 0) #mean logit-transformed survival
+# 
+# #running the Stan model
+# fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
+#                     iter=10000, cores=6, thin = 1,
+#                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
+#                     pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
+#                            "umsy", "alpha_prime", "srep_prime"))
+# 
+# #fit summary
+# out <- summary(fit)
+# saveRDS(fit, "SP_1.2//Results/fit.rds")
+# saveRDS(out, "SP_1.2//Results/out.rds")
 
 fit <- readRDS("SP_1.2//Results/fit.rds")
 out <- readRDS("SP_1.2//Results/out.rds")
@@ -187,7 +187,7 @@ gamma <- as.data.frame(extract(fit)[3])
 alpha_prime <- as.data.frame(extract(fit)[14])
 post <- data.frame(alpha, beta, sigma, gamma, alpha_prime)
 
-poste <- post[sample(nrow(post), 1000),]
+poste <- post
 
 saveRDS(poste, "data\\post.rds")
 

@@ -1,0 +1,13 @@
+Things to cover in the meeting this afternoon:
+
+1) Switch from FSRR to res doc & FSAR
+	-based on communication from Karen Dwyer during sprint week
+	-providing equivalent info from IFC doc, but in res doc format -> then supply grade 12 language 10-pager to go with
+
+2) Switch from Sgen to 20% Smax
+
+3) Ricker stock-recruit results
+
+4) Simulation results
+	-show plots
+	-note that no scenarios produced enough fish to provide an aggregrate abundance with any probability of exceeding the LRP
