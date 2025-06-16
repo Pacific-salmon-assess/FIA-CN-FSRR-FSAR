@@ -23,7 +23,7 @@ library(MASS)
 #install.packages("remotes")    #run this line and the next once to get access to the sgen solver that DFO has developed
 #remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk-hatch", force=TRUE)
 
-library(samSim) #package that DFO created with the sgen solver to estimate sgen given stock recruit parameters
+library(samSim) #package that DFO created to simulate salmon abundances
 
 pkgbuild::has_build_tools(debug = TRUE)
 
@@ -149,7 +149,7 @@ sim_post=sim_post[order(sim_post$stk),]
 
 #manipulate the posterior into 17 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots
 #note that alpha values are based on the 2 SD range in SAS 
-alpha_nu <- seq(from = 0.1, to = 1.75, by = 0.125)
+alpha_nu <- seq(from = 0.2, to = 1.35, by = 0.085)
 stk_beta <- list()
 beta_nu <- list()
 b_ks <- c(7.142857,
