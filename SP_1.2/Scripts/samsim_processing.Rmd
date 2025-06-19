@@ -20,7 +20,7 @@ CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
 fit <- readRDS("SP_1.2//Results/fit.rds")
-alpha_nu <- seq(from = 0.15, to = 1.70, by = 0.125)
+alpha_nu <- seq(from = 0.2, to = 1.35, by = 0.085)
 
 #creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
@@ -49,8 +49,8 @@ for(k in 1:length(alpha_nu)){
       }
    hcrdat <- do.call(rbind,hcrDatalist)
    srdat<- do.call(rbind,srData)
-   hcrdat<-hcrdat[hcrdat$year>50,] #remove burn-in period
-   srdat<-srdat[srdat$year>50,]
+   hcrdat<-hcrdat[hcrdat$year>26,] #remove burn-in period
+   srdat<-srdat[srdat$year>26,]
    
    #hcrdat maybe not needed - has catch statistics though
    hcrdat=hcrdat[order(hcrdat$scenario,hcrdat$iteration,hcrdat$CU,hcrdat$year),]
@@ -68,16 +68,13 @@ Currently, the simulation outputs are broken out at the individual population le
 
 Lower Thompson sgen = 2608    ***note -> larger Sgen because previous run of the rapid status scanner did not include the Nicola stock sgen due to hatchery influence***
 
-Lower Thompson 20% smax = 2678 ***alternative LBM to sgen***
+Lower Thompson 20% smax = 2662 ***alternative LBM to sgen***
 
 Bessette sgen... small population with poor contrast in S-R data, so default to 1500 as the lower benchmark
 ***77 fish is the calculated 20% smax***
 
 ```{r sim output summarization}
-
-#***need to recalculate lower benchmarks and use below - reference the watershed areas that Chuck sent you and use the SREP ~ WA model
-#***need to use a QET at the CU level for the first plot - set to 50 spawners for now, but see lit justifications Michael A. sent
-#***need to update the Nicola SR dat that goes into the SR relationship
+#***need to use a QET at the CU level for the first plot - set to 50 spawners for now
 
 
 sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
@@ -88,19 +85,19 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
 
 sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(59:62)) %>% 
+   filter(year %in% c(35:38)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
                            ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2678, 1, 0)))) %>% #need to change 2996 to 20% Smax
+                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% #need to change 2996 to 20% Smax
    group_by(CU_ID, alpha, targetER, scenario) %>%
    summarize(p_fail = mean(cu_fail))
 
 #QET set to 50 fish for same life-history of Chinook in the Snake River Basin, so used that here
 sim_sum_CU_QET <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(59:62)) %>% 
+   filter(year %in% c(35:38)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 50, 1,
@@ -112,12 +109,12 @@ sim_sum_CU_QET <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iterati
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
 sim_sum_SMU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(59:62)) %>% 
+   filter(year %in% c(35:38)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
                            ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2678, 1, 0)))) %>% #need to change 2996 to 20% Smax
+                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% #need to change 2996 to 20% Smax
    group_by(alpha, targetER, scenario, iteration) %>%
    summarize(smu_fail = ifelse(mean(cu_fail) < 1, 0, 1)) %>% 
    group_by(alpha, targetER, scenario) %>% 
@@ -155,12 +152,12 @@ sim_sum_CU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
                                           name = "Smolt survival index (%)",
-                                          breaks = c(-1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4)),
+                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
-                      breaks = c(0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7),
-                      limits = c(0.0873, 1.714))+
+                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
+                      limits = c(0.1575, 1.35))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.6, by = 0.05))+
+                      breaks = seq(0, 0.3, by = 0.05))+
    theme(legend.position = "top", legend.text = element_text(size = 10),
         legend.title = element_text(size = 13)) +
    guides(fill = guide_legend(ncol = 1), title.position = "top") +
@@ -170,11 +167,11 @@ sim_sum_CU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
               nrow = 2,
               labeller = CU_ID_names)+
    theme_classic()+
-    geom_segment(aes(x = 0.0873, y = 0.05, xend = 0.78, yend = 0.05),
+    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.167, xend = 0.78, yend = 0.167),
+    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.119, xend = 0.78, yend = 0.119),
+    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
@@ -204,25 +201,26 @@ sim_sum_CU_QET %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
                                           name = "Smolt survival index (%)",
-                                          breaks = c(-1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4)),
+                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
-                      breaks = c(0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7),
-                      limits = c(0.0873, 1.714))+
+                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
+                      limits = c(0.1575, 1.35))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.6, by = 0.05))+
+                      breaks = seq(0, 0.3, by = 0.05))+
    theme(legend.position = "top", legend.text = element_text(size = 10),
         legend.title = element_text(size = 13)) +
-  guides(fill = guide_legend(ncol = 1), title.position = "top") +
-  labs(y = "Canadian exploitation rate", x = "Productivity [log(alpha)]") + 
+   guides(fill = guide_legend(ncol = 1), title.position = "top") +
+   labs(y = "Canadian exploitation rate", 
+        x = "Productivity [log(alpha)]") + 
    facet_wrap(. ~ CU_ID,
               nrow = 2,
               labeller = CU_ID_names)+
    theme_classic()+
-    geom_segment(aes(x = 0.0873, y = 0.05, xend = 0.78, yend = 0.05),
+    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.167, xend = 0.78, yend = 0.167),
+    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.119, xend = 0.78, yend = 0.119),
+    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
@@ -251,22 +249,26 @@ sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
                                           name = "Smolt survival index (%)",
-                                          breaks = c(-1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4)),
+                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
-                      breaks = c(0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7),
-                      limits = c(0.0873, 1.714))+
+                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
+                      limits = c(0.1575, 1.35))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.6, by = 0.05))+
+                      breaks = seq(0, 0.3, by = 0.05))+
    theme(legend.position = "top", legend.text = element_text(size = 10),
         legend.title = element_text(size = 13)) +
-  guides(fill = guide_legend(ncol = 1), title.position = "top") +
-  labs(y = "Canadian exploitation rate", x = "Productivity [log(alpha)]") + 
+   guides(fill = guide_legend(ncol = 1), title.position = "top") +
+   labs(y = "Canadian exploitation rate", 
+        x = "Productivity [log(alpha)]") + 
+   facet_wrap(. ~ CU_ID,
+              nrow = 2,
+              labeller = CU_ID_names)+
    theme_classic()+
-    geom_segment(aes(x = 0.0873, y = 0.05, xend = 0.78, yend = 0.05),
+    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.167, xend = 0.78, yend = 0.167),
+    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.119, xend = 0.78, yend = 0.119),
+    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
@@ -318,22 +320,26 @@ sim_sum_agg %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                 "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
                                           name = "Smolt survival index (%)",
-                                          breaks = c(-1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4)),
+                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
                       name = "Productivity [log(alpha)]", expand = c(0,0),
-                      breaks = c(0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7),
-                      limits = c(0.0873, 1.714))+
+                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
+                      limits = c(0.1575, 1.35))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.6, by = 0.05))+
+                      breaks = seq(0, 0.3, by = 0.05))+
    theme(legend.position = "top", legend.text = element_text(size = 10),
         legend.title = element_text(size = 13)) +
-  guides(fill = guide_legend(ncol = 1), title.position = "top") +
-  labs(y = "Canadian exploitation rate", x = "Productivity [log(alpha)]") + 
+   guides(fill = guide_legend(ncol = 1), title.position = "top") +
+   labs(y = "Canadian exploitation rate", 
+        x = "Productivity [log(alpha)]") + 
+   facet_wrap(. ~ CU_ID,
+              nrow = 2,
+              labeller = CU_ID_names)+
    theme_classic()+
-    geom_segment(aes(x = 0.0873, y = 0.05, xend = 0.78, yend = 0.05),
+    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.167, xend = 0.78, yend = 0.167),
+    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.0873, y = 0.119, xend = 0.78, yend = 0.119),
+    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
     geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+

@@ -251,7 +251,7 @@ simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 #srDat <- read.csv("data\\samsim pars\\srDat.csv")
 
-for(k in 1:6){
+for(k in 1:14){
   for(u in 1:nrow(simPar)){
     genericRecoverySim(
       simPar = simPar[u,],
