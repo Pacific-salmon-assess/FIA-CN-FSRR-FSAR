@@ -251,14 +251,14 @@ simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 #srDat <- read.csv("data\\samsim pars\\srDat.csv")
 
-for(k in 1:length(alpha_nu)){
+for(k in 1:6){
   for(u in 1:nrow(simPar)){
     genericRecoverySim(
       simPar = simPar[u,],
       cuPar = CUPar,
       #srDat = srDat,
       ricPars = sim_post_vars[[k]],
-      nTrials = 2000,
+      nTrials = 1000,
       cuCustomCorrMat = pcor,
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }
