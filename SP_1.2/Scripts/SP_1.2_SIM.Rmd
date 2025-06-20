@@ -245,18 +245,16 @@ Note that HO recruits are added to the total recruit number, and are part of the
 
 ```{r sim input files}
 
-
-###samSim struggles when too much of the posterior is sampled - must be some values of beta or sigma that it cannot handle
 simPar <- read.csv("data\\samsim pars\\SimPars.csv")
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
-#srDat <- read.csv("data\\samsim pars\\srDat.csv")
+srDat <- read.csv("data\\samsim pars\\srDat.csv")
 
-for(k in 1:14){
+for(k in 1:7){
   for(u in 1:nrow(simPar)){
     genericRecoverySim(
       simPar = simPar[u,],
       cuPar = CUPar,
-      #srDat = srDat,
+      srDat = srDat,
       ricPars = sim_post_vars[[k]],
       nTrials = 1000,
       cuCustomCorrMat = pcor,

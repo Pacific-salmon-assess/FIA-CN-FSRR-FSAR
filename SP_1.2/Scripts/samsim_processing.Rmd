@@ -84,20 +84,20 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
 
 
 sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
-   summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(35:38)) %>% 
+   summarize(cu_return = sum(spawners)) %>% 
+   filter(year %in% c(59:62)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
+   summarize(geo_mean_gen = exp(mean(log(ifelse(cu_return == 0, 0.001, cu_return))))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
                            ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% #need to change 2996 to 20% Smax
+                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% 
    group_by(CU_ID, alpha, targetER, scenario) %>%
    summarize(p_fail = mean(cu_fail))
 
 #QET set to 50 fish for same life-history of Chinook in the Snake River Basin, so used that here
 sim_sum_CU_QET <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(35:38)) %>% 
+   filter(year %in% c(59:62)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 50, 1,
@@ -109,7 +109,7 @@ sim_sum_CU_QET <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iterati
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
 sim_sum_SMU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
    summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(35:38)) %>% 
+   filter(year %in% c(59:62)) %>% 
    group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
@@ -260,9 +260,6 @@ sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
    guides(fill = guide_legend(ncol = 1), title.position = "top") +
    labs(y = "Canadian exploitation rate", 
         x = "Productivity [log(alpha)]") + 
-   facet_wrap(. ~ CU_ID,
-              nrow = 2,
-              labeller = CU_ID_names)+
    theme_classic()+
     geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
                 colour = "blue", linewidth = 0.5, alpha = 0.1)+
