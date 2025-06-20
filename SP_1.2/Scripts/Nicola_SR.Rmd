@@ -192,3 +192,13 @@ poste <- post
 saveRDS(poste, "data\\post.rds")
 
 ```
+
+Code chunk for going back and forth between real space and transformed space for smolt to age 3 recruit survival
+```{r survival transform}
+
+#plot logit-transformed and standardized range of smolt survival
+ss <- c(-1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2)
+
+inv.logit(ss * sd(logit(nic_dat$smolt_age3_survival)) + mean(logit(nic_dat$smolt_age3_survival)))
+
+```
