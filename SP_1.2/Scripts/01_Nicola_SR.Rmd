@@ -1,0 +1,173 @@
+---
+title: "Nicola S-R"
+author: "Colin Bailey"
+date: "2025-04-15"
+output: html_document
+---
+
+This code chunk loads the required packages and the data. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+library(shinystan)
+library(bayesplot)
+library(pkgbuild)
+library(boot)
+library(loo)
+library(MASS)
+library(dglm)
+
+pkgbuild::has_build_tools(debug = TRUE)
+rstan_options(auto_write=T)
+options(mc.cores = parallel::detectCores())
+
+#read in and check data
+nic_dat <- read.csv("SP_1.2//Data_in//nic_dat.csv")
+head(nic_dat)
+```
+
+
+A quick data visualization of the stock-recruit information for the Nicola River Chinook stock.
+```{r data vis}
+
+nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
+  geom_point()+
+  labs(x = "Total spawners (n)", y = "Natural origin recruits (n)")+
+  theme_classic()
+
+```
+
+
+This code chunk runs a Ricker stock-recruit model using Stan that incorporates a hatchery-based smolt-to-age_3 survival (SS) index covariate. The model also includes an AR-1 temporal autocorrelation structure. The SS index is logit-transformed and standardized (z-scored). Note that hatchery-origin spawners are included in the total spawners generating recruits, but only natural-origin recruits are used in the model. In addition, the model estimates the first year (1992) of the SS index because of a disease issue at Spius Creek Hatchery that severely-reduced smolt survival that year.
+```{r ricker model}
+
+#un-comment the section below to re-run the Nicola stock-recruit analysis
+
+# #creating the list of data to feed to Stan
+# dat <- list("N" = nrow(nic_dat),                  #number of years of data
+#             "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
+#               sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+#             "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
+#             "S" = nic_dat$total_spawners, #vector of total spawner abundance
+#             "mlogit_surv" = 0) #mean logit-transformed survival
+# 
+# #running the Stan model
+# fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
+#                     iter=10000, cores=6, thin = 1,
+#                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
+#                     pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
+#                            "umsy", "alpha_prime", "srep_prime"))
+# 
+# #fit summary
+# out <- summary(fit)
+# saveRDS(fit, "SP_1.2//Results/fit.rds")
+# saveRDS(out, "SP_1.2//Results/out.rds")
+
+fit <- readRDS("SP_1.2//Results/fit.rds")
+out <- readRDS("SP_1.2//Results/out.rds")
+
+```
+
+
+This code chunk visualizes the results of the Stan model and includes diagnostic plots for the Nicola River Chinook indicator stock.
+```{r results vis}
+
+#mean prediction function for log-linearized Ricker with SS index covariate
+ricker <- function(x){
+  (-out$summary[1,1] * x + out$summary[2,1])
+}
+
+#mean prediction function for real space Ricker with SS index covariate
+ricker_exp <- function(x){
+  exp(-out$summary[1,1] * x + out$summary[2,1]) * x
+}
+
+#drawing from the posterior distribution to plot error in relationships
+alpha <- as.vector(extract(fit)[2])
+beta <- as.vector(extract(fit)[1])
+gamma <- as.data.frame(extract(fit)[3])
+post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
+
+#sampling from the posterior using rows that fall within the 95% CI for alpha
+qpost <- post %>% filter(alpha > quantile(post$alpha, probs = c(0.025)) & alpha < quantile(post$alpha, probs = c(0.975)))
+
+set.seed(42)
+poste <- sample_n(qpost, 1000)
+
+#taking a sample of 1000 lines from the 95% CI of the posterior for the log-linearized Ricker
+uncertainty_ricker <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){(poste[1] + poste[2] * x)}, colour="blue",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
+#taking a sample of 1000 lines from the 95% CI of the posterior for the normal space Ricker
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="blue",
+                alpha = 0.02, linewidth = 0.01)
+  })
+
+#linearized Ricker plot
+nic_dat %>% ggplot(aes(x = total_spawners, y = log(no_recruits/total_spawners)))+
+  geom_point()+
+  uncertainty_ricker+
+  geom_function(fun = ricker)+
+  labs(x = "Spawners(n)", y = "log(Recruits/Spawner)")+
+  theme_classic()
+
+#normal space Ricker plot
+nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
+  geom_point()+
+  geom_function(fun = ricker_exp)+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  uncertainty_ricker_exp+
+  labs(x = "Spawners(n)", y = "Recruits(n)")+
+  scale_y_continuous(limits = c(0, 30000))+
+  theme_classic()
+
+
+#Diagnostic Plots
+
+##Pairs Plots
+pairs(fit, pars = c("beta", "alpha", "gamma", "sigma", "surv_est", "rho"))
+
+##Predicted vs observed
+nic_dat$pred <- out$summary[8:36,1]
+
+###predicted ~ observed
+nic_dat %>% ggplot(aes(x = log(no_recruits/total_spawners), y = pred))+
+  geom_point()+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  labs(x = "Observed", y = "Predicted")+
+  theme_classic()
+
+###observed - predicted ~ brood year
+nic_dat %>% ggplot(aes(x = brood_year, y = log(no_recruits/total_spawners) - pred))+
+  geom_point()+
+  geom_abline(aes(slope = 0, intercept = 0), colour = "black", linetype = "dashed")+
+  labs(x = "Brood Year", y = "Observed - Predicted")+
+  theme_classic()
+
+```
+
+This code chunk extracts values from the posterior of the Nicola S-R model for use in the forward simulation (see SP_1.2_SIM.Rmd).
+```{r extract posterior data for samsim}
+
+#extracting the full posterior, including alpha prime for use with the Parken Habitat model (see Benchmarks.Rmd and SP_1.2_SIM.Rmd for usage)
+alpha <- as.vector(extract(fit)[2])
+beta <- as.vector(extract(fit)[1])
+sigma <- as.data.frame(extract(fit)[4])
+gamma <- as.data.frame(extract(fit)[3])
+alpha_prime <- as.data.frame(extract(fit)[14])
+post <- data.frame(alpha, beta, sigma, gamma, alpha_prime)
+
+poste <- post
+
+saveRDS(poste, "data\\post.rds")
+
+```
+
+

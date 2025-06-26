@@ -1,0 +1,109 @@
+---
+title: "Benchmark Estimation"
+author: "Colin Bailey"
+date: "2025-06-05"
+output: html_document
+---
+
+This code chunk loads the required packages and the data. Note the commented-out code for installing the specific version of samSim required.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("remotes")
+#library(remotes)
+#remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk-hatch", force=TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+library(shinystan)
+library(bayesplot)
+library(pkgbuild)
+library(boot)
+library(loo)
+library(MASS)
+library(samSim)
+library(samEst)
+
+pkgbuild::has_build_tools(debug = TRUE)
+rstan_options(auto_write=T)
+options(mc.cores = parallel::detectCores())
+
+#baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Spring 1.2 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
+old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
+
+```
+
+This code chunk uses the Parken Habitat Model to estimate SREP for Bonaparte, Deadman, Louis, and Bessette based on watershed area. The SREP values used for the dependent variable in the Parken model are calculated as SREP = alpha prime / beta. Thus, once SREPs posteriors are estimated, to extract beta or Smax (Smax = 1/beta) from predicted SREP, we used the alpha prime that was estimated for the Nicola River in "01_Nicola_SR_Rmd". As in the simulation model (see 03_SP_1.2_SIM.Rmd), we assumed that all the productivity (alpha) of the Nicola population is representative of all populations in Fraser Spring 1.2. Besides Smax and beta, this code chunk also estimates the lower biological benchmark for each CU using 20% Smax as well as Sgen, and estimates 85% SMSY.  
+
+*Note that we used alpha prime from the Nicola SR model to work back from Srep estimated from the Parken model to Smax for the non-Nicola populations, but that we used regular alpha from the Nicola SR model for the estimate of Nicola-specific Smax*
+
+*If you use the average alpha from the populations that were used to create the data for the Parken model in place of alpha prime from the Nicola S-R model, the Smax estimates for the non-Nicola stocks are too small - this is because the mean watershed area of the data populations in the Parken model are an order of magnitude larger on average than the Fraser Sp 1.2 watershed areas*
+
+```{r SREP & benchmarks estimation}
+
+###Extract alpha prime from Nicola S-R model posterior
+post <- readRDS("data\\post.rds")
+alpha <- mean(post$alpha_prime)
+
+###Estimate srep from watershed areas for populations without beta estimates###
+wa = c(4521, 3498.64, 889.64, 519.39, 276.21)
+pop = c("Nicola River", "Bonaparte River", "Deadman River", "Louis Creek", "Bessette Creek")
+
+nu_wa = data.frame(pop, wa)
+
+source("R\\srep_wa_analysis_predict.R") #R script that runs the Parken Habitat Model and produces a posterior prediction for each new watershed (1 column per watershed)
+
+nu_srep <- srep_est(nu_wa, old_wa)
+names(nu_srep) <- c(unique(nu_wa$pop)) #label the columns of the posterior
+nu_srep <- nu_srep[sample(nrow(nu_srep), 1000),] #srep posterior, 1000 samples each per population
+
+#calculate Smax (Smax = srep / alpha prime) for each population without an estimate of beta
+#carries posterior of nu_srep
+sm_bon <- (nu_srep$`Bonaparte River` / alpha)
+sm_ddm <- (nu_srep$`Deadman River` / alpha)
+sm_lou <- (nu_srep$`Louis Creek` / alpha)
+sm_bst <- (nu_srep$`Bessette Creek` / alpha)
+
+#Smax for Nicola River
+fit <- readRDS("SP_1.2\\Results\\fit.rds") #reading in Nicola S-R model fit
+sm_nic <- sample(1 / as.vector(extract(fit)[1])$beta, size = 1000, replace = F)
+
+#Smax for Lth CU
+sm_lth <- sm_nic + sm_bon + sm_ddm + sm_lou
+
+#calculating 20% Smax (lower biological benchmark) for the Lower Thompson CU
+lbm_lth <- median((sm_nic + sm_bon + sm_ddm + sm_lou) * 0.2) #median lbm
+lbm_lth_95CI <- quantile((sm_nic + sm_bon + sm_ddm + sm_lou) * 0.2, probs = c(0.025, 0.975)) #95%CI
+
+#calculating Sgen for the Lower Thompson CU
+sgen_lth <- median(sgenCalcDirect(mean(as.data.frame(as.vector(extract(fit)[2]))$alpha),1/sm_lth))
+sgen_lth_95CI <- quantile((sgenCalcDirect(mean(as.data.frame(as.vector(extract(fit)[2]))$alpha),1/sm_lth)), probs = c(0.025, 0.975))  #95%CI
+
+#calculating 20% Smax (lower biological benchmark) for the South Thompson-Bessette Creek CU
+lbm_bst = median(sm_bst * 0.2) #median lbm
+lbm_bst_95CI = quantile((sm_bst * 0.2), probs = c(0.025, 0.975))  #95%CI
+
+#calculating Sgen for the South Thompson-Bessette Creek CU
+sgen_bst <-  median(sgenCalcDirect(mean(as.data.frame(as.vector(extract(fit)[2]))$alpha),1/sm_bst))
+sgen_bst_95CI <- quantile((sgenCalcDirect(mean(as.data.frame(as.vector(extract(fit)[2]))$alpha),1/sm_bst)), probs = c(0.025, 0.975))  #95%CI
+
+#calculating 85% SMSY for Lower Thompson and South Thompson-Bessette CUs
+b_lth <- 1/(sm_nic + sm_bon + sm_ddm + sm_lou) #calculate beta for Lower Thompson
+b_bst <- 1/sm_bst #calculate beta for South Thompson-Bessette Creek
+
+smsy_lth_85 <- 0.85 * (-log(mean((as.data.frame(as.vector(extract(fit)[2]))$alpha))) / 
+                         (b_lth * mean((as.data.frame(as.vector(extract(fit)[2]))$alpha))))
+smsy_bst_85 <- 0.85 * (-log(mean((as.data.frame(as.vector(extract(fit)[2]))$alpha))) / 
+                         (b_bst * mean((as.data.frame(as.vector(extract(fit)[2]))$alpha))))
+
+
+smsy_85_lth <- mean(smsy_lth_85)
+smsy_85_lth_95CI <- quantile(smsy_lth_85, probs = c(0.025, 0.5, 0.975))
+
+smsy_85_bst <- mean(smsy_bst_85)
+smsy_85_bst_95CI <- quantile(smsy_bst_85, probs = c(0.025, 0.5, 0.975))
+
+```
+

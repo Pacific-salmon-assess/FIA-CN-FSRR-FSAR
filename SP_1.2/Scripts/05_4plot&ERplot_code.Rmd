@@ -1,0 +1,200 @@
+---
+title: "4plot & ER plot code"
+author: "Colin Bailey"
+date: "2025-06-26"
+output: html_document
+---
+
+This code chunk loads the required packages and the data.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(cowplot)
+library(samSim)
+
+dat <- read.csv("SP_1.2\\Data_in\\srDat.csv")
+esc_dat <- read.csv("SP_1.2\\Data_in\\sp1.2_smu_no_escape.csv")
+nic_dat <- read.csv("SP_1.2\\Data_in\\nic_dat.csv")
+nic_ER <- read.csv("SP_1.2\\Data_in\\nic_ER.csv")
+
+```
+
+Code chunk to create the Spring 1.2 recruitment plot
+```{r recruitment plot}
+
+n_dat <- dat %>% mutate(t_rec = rec2 + rec3 + rec4 + rec5 + rec6,
+               p2 = rec2 / t_rec,
+               p3 = rec3 / t_rec,
+               p4 = rec4 / t_rec,
+               p5 = rec5 / t_rec,
+               p6 = rec6 / t_rec,
+               m_rec = t_rec / ets) %>% filter(yr %in% c(1995:2020))
+
+###Escapement timeseries
+`%!in%` <- Negate(`%in%`)
+edat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
+
+bess <- edat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(TotalInfilled = sum(TotalInfilled, na.rm = F))
+
+dat_simp <- edat %>% filter(Pop_Name %!in% c("BESSETTE CREEK", "HARRIS CREEK", "CREIGHTON CREEK", "DUTEAU CREEK"))
+
+dat_bess <- edat %>% filter(Pop_Name == "BESSETTE CREEK") %>% dplyr::select(-TotalInfilled) %>%
+  bind_cols(., TotalInfilled = bess$TotalInfilled)
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+recs <- escape %>% mutate(p_spawn = 1-ER,
+                          recs = no_spawners / p_spawn) %>% group_by(ret_year) %>% 
+  summarize(smu_recs = sum(recs))
+
+
+recruit <- recs %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_recs/1000))+
+  labs(x = "Return year", y = "Recruits (1000s)")+
+  scale_y_continuous(breaks = c(0,5,10,15,20, 25, 30))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  theme_classic()
+
+
+```
+
+Code chunk to create the Spring 1.2 catch plot
+```{r catch plot}
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+cat <- escape %>% mutate(p_spawn = 1-ER,
+                          recs = no_spawners / p_spawn,
+                          catch = ER * recs) %>% group_by(ret_year) %>% 
+  summarize(smu_catch = sum(catch))
+
+catch <- cat %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_catch/1000))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  labs(x = "Return year", y = "Catch (1000s)")+
+  theme_classic()
+
+```
+
+Code chunk to create the Spring 1.2 spawners plot
+```{r spawners plot}
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+esc <- escape %>% group_by(ret_year) %>% summarize(smu_spawn = sum(no_spawners))
+
+spawn <- esc %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_spawn/1000))+
+  labs(x = "Return year", y = "Spawner abundance (1000s)")+
+  scale_y_continuous(breaks = c(0,5,10, 15, 20, 25))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  theme_classic()
+
+cu_esc <- escape %>% mutate(cu = ifelse(stk %in% c(1:4), "Lth", "Bst"),
+                            p_spawn = 1-ER,
+                            recruits = no_spawners / p_spawn) %>% 
+  group_by(cu, ret_year) %>%
+  summarize(sum_cu = sum(no_spawners),
+            sum_cu_rec = sum(recruits))
+
+write.csv(cu_esc, "cu_esc.csv")
+
+```
+
+Code chunk to create the Spring 1.2 exploitation rate plot
+```{r ER plot}
+
+ER <- nic_ER %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = tot_mort_um), colour = "black")+
+  geom_hline(aes(yintercept = 0.34), colour = "red")+
+  scale_x_continuous(limits = c(1989, 2024))+
+  labs(x = "Return year", y = "Exploitation rate")+
+  theme_classic()
+
+
+```
+
+Code chunk for combining all the plots into a single 4-panel figure
+```{r 4-plot}
+
+four_plot <- plot_grid(catch, spawn, ER, recruit,
+          labels = c("(A)", "(B)", "(C)", "(D)"),
+          label_size = 12,
+          align = "v",
+          label_x = 0.87)
+
+ggsave(four_plot, height = 5, width = , units = "in", filename = "4plot.png")
+
+```
+
+Code chunk to create the smolt-to-age_3 survival index plot
+```{r surv plot}
+
+nic_dat %>% ggplot(aes(x = brood_year, y = smolt_age3_survival*100))+
+  geom_line()+
+  scale_x_continuous(limits = c(1993, 2020),
+                     breaks = c(1995, 2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous()+
+  labs(x = "Brood year", y = "Smolt to age 3 recruit survival (%)")+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "surv.png")
+
+```
+
+
+
+

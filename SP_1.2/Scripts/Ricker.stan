@@ -56,10 +56,10 @@ generated quantities {
   real srep_prime;
   
   nu_Y[1] = normal_rng(mu[1], sigma);
-  nu_rec[1] = exp(nu_Y[1])*S[1]; 
+  nu_rec[1] = exp(nu_Y[1]) * S[1];
   for(i in 2:N){
       nu_Y[i] = normal_rng(mu[i], sigma_AR);
-      nu_rec[i] = exp(nu_Y[i]*S[i]);
+      nu_rec[i] = exp(nu_Y[i]) * S[i];
   }
   
   alpha_prime = alpha + (sigma_AR^2/2);

@@ -1,7 +1,7 @@
 
-srep_est <- function(nu_wa){
+srep_est <- function(nu_wa, old_wa){
   #read in data to run Stan model
-  wa_dat <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv")
+  wa_dat <- old_wa
   
   
   #creating the list of data to feed to Stan
