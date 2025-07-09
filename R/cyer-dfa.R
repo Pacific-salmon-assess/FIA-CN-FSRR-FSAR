@@ -6,8 +6,9 @@
 library(tidyverse)
 library(MARSS)
 library(readxl)
-library(stringr)
-
+library(reshape2)
+library(corrplot)
+library(GGally)
 
 ## import and clean
 sheet_names <- excel_sheets(
@@ -60,6 +61,21 @@ cyer_mat <- dat_wide %>%
   t()
 
 
+
+dat %>% 
+  select(-c(logit_cyer)) %>% 
+  pivot_wider(
+    names_from = "stock", values_from = "can_marine_cyer"
+  ) %>% 
+  select(-c(catch_year)) %>% 
+  ggpairs(.,
+        upper = list(continuous = wrap("cor", size = 4)),
+        lower = list(continuous = "points"),
+        diag  = list(continuous = "barDiag")) +
+  theme(strip.text = element_text(size = 10))
+
+
+## FIT ------------------------------------------------------------------------
 
 ## Compare state-space models that included one latent trend and either time series
 # specific obs variances or a single obs variance
@@ -114,13 +130,24 @@ model.list_dfa2 <- list(
 fit_dfa2 <- MARSS(cyer_mat, model = model.list_dfa2, form = "dfa")
 
 
+## AIC comparison (simplest state space model favored)
+fit1$AIC
+fit_dfa1$AIC
+fit_dfa2$AIC
+
+
+## PREDICTIONS -----------------------------------------------------------------
+
 ## plot predictions 
 mean_dat <- dat %>% 
   group_by(stock) %>% 
   summarize(
     mean_logit_cyer = mean(logit_cyer, na.rm = T)
   )
-pred_dat <- predict(fit_dfa2, type = "ytT", interval = "confidence")$pred %>% 
+
+
+# predictions from one trend state-space model
+pred_dat_ss <- predict(fit1, type = "ytT", interval = "confidence")$pred %>% 
   rename(
     stock = .rownames
   ) %>% 
@@ -128,15 +155,38 @@ pred_dat <- predict(fit_dfa2, type = "ytT", interval = "confidence")$pred %>%
   mutate(
     year = t + 1984,
     real_obs = boot::inv.logit(y + mean_logit_cyer),
-    real_estimate = boot::inv.logit(estimate + mean_logit_cyer)
+    real_estimate = boot::inv.logit(estimate + mean_logit_cyer),
+    real_up = boot::inv.logit(estimate + mean_logit_cyer + (1.96 * se)),
+    real_lo = boot::inv.logit(estimate + mean_logit_cyer - (1.96 * se))
+  )
+pred_dat_dfa <- predict(fit_dfa2, type = "ytT", interval = "confidence")$pred %>% 
+  rename(
+    stock = .rownames
+  ) %>% 
+  left_join(., mean_dat, by = "stock") %>% 
+  mutate(
+    year = t + 1984,
+    real_obs = boot::inv.logit(y + mean_logit_cyer),
+    real_estimate = boot::inv.logit(estimate + mean_logit_cyer),
+    real_up = boot::inv.logit(estimate + mean_logit_cyer + (1.96 * se)),
+    real_lo = boot::inv.logit(estimate + mean_logit_cyer - (1.96 * se))
   )
 
-ggplot(pred_dat) +
-  geom_point(aes(x = year, y = real_obs)) +
-  geom_line(aes(x = year, y = real_estimate)) +
+
+ggplot() +
+  geom_point(data = pred_dat_ss, aes(x = year, y = real_obs)) +
+  geom_line(data = pred_dat_ss, aes(x = year, y = real_estimate), 
+            color = "red") +
+  geom_ribbon(data = pred_dat_ss, aes(x = year, ymin = real_lo, ymax = real_up), 
+              fill = "red", alpha = 0.3) +
+  geom_line(data = pred_dat_dfa, aes(x = year, y = real_estimate),
+            color = "blue") +
+  geom_ribbon(data = pred_dat_dfa, aes(x = year, ymin = real_lo, ymax = real_up), 
+              fill = "blue", alpha = 0.3) +
   facet_wrap(
     ~ stock
-  )
+  ) +
+  ggsidekick::theme_sleek()
 
 
 Z.est <- coef(fit_dfa2, type = "matrix")$Z
