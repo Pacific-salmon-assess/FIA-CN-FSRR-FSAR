@@ -173,7 +173,7 @@ pred_dat_dfa <- predict(fit_dfa2, type = "ytT", interval = "confidence")$pred %>
   )
 
 
-ggplot() +
+marss_ribbon <- ggplot() +
   geom_point(data = pred_dat_ss, aes(x = year, y = real_obs)) +
   geom_line(data = pred_dat_ss, aes(x = year, y = real_estimate), 
             color = "red") +
@@ -187,6 +187,11 @@ ggplot() +
     ~ stock
   ) +
   ggsidekick::theme_sleek()
+
+png(here::here("figs", "cyer_marss.png"), height = 4, width = 6, units = "in",
+    res = 250)
+marss_ribbon
+dev.off()
 
 
 Z.est <- coef(fit_dfa2, type = "matrix")$Z
