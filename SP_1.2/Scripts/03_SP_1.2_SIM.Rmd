@@ -303,20 +303,22 @@ simPar <- read.csv("data\\samsim pars\\SimPars.csv") #read in
 CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
 srDat <- read.csv("data\\samsim pars\\srDat_infilled.csv")
 
-# #uncomment to run the simulation
-# for(k in 1:7){
-#   for(u in 1:nrow(simPar)){
-#     genericRecoverySim(
-#       simPar = simPar[u,],
-#       cuPar = CUPar,
-#       srDat = srDat,
-#       ricPars = sim_post_vars[[k]],
-#       #nTrials = 1000, #number of trials used to produce the plots
-#       nTrials = 100, #good number of iterations for testing the simulation
-#       cuCustomCorrMat = pcor,
-#       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
-#     }
-# }
+#OG tau = 0.6509379, test 0.75 and 0.55
+#first run with normal age dist but 0.55 tau
+#uncomment to run the simulation
+for(k in 1:14){
+  for(u in 1:nrow(simPar)){
+    genericRecoverySim(
+      simPar = simPar[u,],
+      cuPar = CUPar,
+      srDat = srDat,
+      ricPars = sim_post_vars[[k]],
+      #nTrials = 1000, #number of trials used to produce the plots
+      nTrials = 500, #good number of iterations for testing the simulation
+      cuCustomCorrMat = pcor,
+      outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
+    }
+}
 
 ```
 

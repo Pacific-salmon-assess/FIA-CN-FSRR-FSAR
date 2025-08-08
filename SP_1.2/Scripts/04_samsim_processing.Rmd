@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(tidyverse)
 library(cowplot)
+library(boot)
+library(ggpattern)
 
 nic_dat <- read.csv("SP_1.2//Data_in//nic_dat.csv")
 fit <- readRDS("SP_1.2//Results/fit.rds")

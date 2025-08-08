@@ -25,16 +25,16 @@ srep_est <- function(nu_wa, old_wa){
 
 
 #quick check that the line fits the data
-# pred <- function(x){
-#   (out_srep$summary[1,1] * x + out_srep$summary[2,1])
-# }
-# 
-# 
-# wa_dat %>% ggplot(aes(x = (log(watershed_area) - mean(log(watershed_area))) / sd(log(watershed_area)), y = log(srep)))+
-#   geom_point()+
-#   #uncertainty_ricker+
-#   geom_function(fun = pred)+
-#   labs(x = "log(Watershed area)", y = "log(Srep)")+
-#   theme_classic()
+pred <- function(x){
+  (out_srep$summary[1,1] * x + out_srep$summary[2,1])
+}
+
+
+wa_dat %>% ggplot(aes(x = (log(watershed_area) - mean(log(watershed_area))) / sd(log(watershed_area)), y = log(srep)))+
+  geom_point()+
+  #uncertainty_ricker+
+  geom_function(fun = pred)+
+  labs(x = "log(Watershed area)", y = "log(Srep)")+
+  theme_classic()
 
 

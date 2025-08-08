@@ -12,12 +12,23 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(tidyverse)
 library(cowplot)
-library(samSim)
+#library(samSim)
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(RColorBrewer)
+library(tidyr)
+library(patchwork)
 
 dat <- read.csv("SP_1.2\\Data_in\\srDat.csv")
 esc_dat <- read.csv("SP_1.2\\Data_in\\sp1.2_smu_no_escape.csv")
 nic_dat <- read.csv("SP_1.2\\Data_in\\nic_dat.csv")
 nic_ER <- read.csv("SP_1.2\\Data_in\\nic_ER.csv")
+epad_dat <- read.csv("SP_1.2\\Data_in\\Fraser_Chinook_Releases_1975-2024.csv")
+age_dat <- read.csv("SP_1.2\\Data_in\\prefishery_abundance_age_BY.csv")
+pni_dat <-read.csv("SP_1.2\\Data_in\\nic_PNI.csv")
 
 ```
 
@@ -195,6 +206,202 @@ ggsave(height = 3.5, width = 4.5, units = "in", filename = "surv.png")
 
 ```
 
+Code chunk to create the Nicola age proportions plot
+```{r surv plot}
+
+## Convert data-frame to long-form ##### 
+
+age_data <- age_data %>%
+  mutate(across(ends_with("percent"), ~ as.numeric(sub("%", "", .)) / 100))
 
 
+# Pivot counts
+counts_long <- age_data %>%
+  pivot_longer(
+    cols = starts_with("age_") & !ends_with("percent"),
+    names_to = "age",
+    names_prefix = "age_",
+    values_to = "count"
+  )
 
+# Pivot percents
+percents_long <- age_data %>%
+  pivot_longer(
+    cols = ends_with("percent"),
+    names_to = "age",
+    names_pattern = "age_(\\d+)_percent",
+    values_to = "percent"
+  )
+
+# Join the two long-form datasets
+age_data_long <- left_join(counts_long, percents_long, by = c("BY", "age"))
+
+# Convert age to numeric
+age_data_long <- age_data_long %>%
+  mutate(age = as.numeric(age))
+
+# Preview result
+print(age_data_long)
+### Change age to factor #### 
+
+age_data_long <- age_data_long %>%
+  mutate(age = as.factor(age)) 
+
+
+#### Create Stacked Bar Plot #####
+
+pal <- gray.colors(3, start=0.1, end=0.9) #gray scale option
+# pal <- c("darkslategrey","azure4","azure3","azure1")
+#pal <- c("#88CCEE", "#CC6677", "#DDCC77")
+
+
+windows()
+
+  
+  age_data_long %>%
+    ggplot(aes(x= BY, y = percent, fill = age)) +
+    geom_bar(stat = "identity", position = "stack") +
+    labs(
+      x = "Brood Year",
+      y = "Proportion (Prefishery Abundance)",
+      fill = "Age"
+    ) +
+    scale_y_continuous(
+      breaks = seq(0, 1, by = 0.1),
+      expand = expansion(mult = c(0, 0.1))
+    ) +
+    scale_x_continuous(breaks = seq(1993, 2019, by = 1)) +
+    scale_fill_manual(values = pal) +
+    theme_classic() +
+    theme(
+      legend.position = "top",
+      axis.text.x = element_text(size = 10, angle = 45, hjust = 1, face = "bold"),
+      axis.text.y = element_text(size = 10, hjust = 1, face = "bold", vjust = 1)
+    )
+  
+  ggsave("Nicola_age_structure_prefishery_abundanceBY.png",plot = last_plot(), width = 7, height = 5, units = "in", dpi = 300)
+
+```
+
+Code chunk to create the  hatchery releases plot
+```{r surv plot}
+
+# Filter for STOCK_CU_INDEX "CK-17"
+epad_data <- epad_data %>%
+  filter(STOCK_CU_INDEX == "CK-17")
+
+# Replace NA numeric values with zero (if any remain)
+epad_data <- epad_data %>%
+  mutate(across(where(is.numeric), ~replace_na(.x, 0)))
+
+# Define full range of years
+full_years <- 1980:2024
+
+### Filter Fry Data ##
+fry_data <- epad_data %>%
+  filter(RELEASE_STAGE_NAME %in% c("Fed Fry", "Nat Fry")) %>%
+  group_by(RELEASE_YEAR, STOCK_CU_INDEX, RELEASE_SITE_NAME) %>%
+  summarise(TotalReleased = sum(TotalRelease, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Stage = "Fry") %>%
+  mutate(CombinedSite = case_when(
+    RELEASE_SITE_NAME %in% c("Bonaparte R", "Bonaparte R Low", "Bonaparte R Up") ~ "Bonaparte R",
+    RELEASE_SITE_NAME %in% c("Nicola R", "Nicola R Up") ~ "Nicola R",
+    RELEASE_SITE_NAME %in% c("Spius Cr", "Spahomin Cr", "Maka Cr") ~ "Spius Cr",
+    TRUE ~ RELEASE_SITE_NAME
+  )) %>%
+  # Fill missing year-site combinations with 0
+  complete(RELEASE_YEAR = full_years, CombinedSite, Stage, fill = list(TotalReleased = 0))
+
+
+### Split Smolt Data into Smolt 0+ and Smolt 1+ ###
+smolt_data <- epad_data %>%
+  filter(RELEASE_STAGE_NAME %in% c("Smolt 0+", "Smolt 1+")) %>%
+  group_by(RELEASE_YEAR, STOCK_CU_INDEX, RELEASE_SITE_NAME, RELEASE_STAGE_NAME) %>%
+  summarise(TotalReleased = sum(TotalRelease, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Stage = RELEASE_STAGE_NAME) %>%  # Now Stage = "Smolt 0+" or "Smolt 1+"
+  mutate(CombinedSite = case_when(
+    RELEASE_SITE_NAME %in% c("Bonaparte R", "Bonaparte R Low", "Bonaparte R Up") ~ "Bonaparte",
+    RELEASE_SITE_NAME %in% c("Nicola R", "Nicola R Up") ~ "Nicola",
+    RELEASE_SITE_NAME %in% c("Spius Cr", "Spahomin Cr", "Maka Cr") ~ "Spius Cr",
+    TRUE ~ RELEASE_SITE_NAME
+  )) %>%
+  # Fill missing year-site combinations with 0
+  complete(RELEASE_YEAR = full_years, CombinedSite, Stage, fill = list(TotalReleased = 0))
+
+# Split by stage
+fry_data_plot <- fry_data %>% filter(Stage == "Fry")
+smolt0_data_plot <- smolt_data %>% filter(Stage == "Smolt 0+")
+smolt1_data_plot <- smolt_data %>% filter(Stage == "Smolt 1+")
+
+# Plot Fry
+plot_fry <- ggplot(fry_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                      group = interaction(CombinedSite, Stage),
+                                      color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Fry", x = NULL, color = NULL) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "top",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 0, 10)
+  )
+
+# Plot Smolt 0+
+plot_smolt0 <- ggplot(smolt0_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                            group = CombinedSite, color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Sub-yearling Smolts", x = NULL) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(0, 10, 0, 10)
+  )
+
+# Plot Smolt 1+
+plot_smolt1 <- ggplot(smolt1_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                            group = CombinedSite, color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Yearling Smolts", x = "Release Year") +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(0, 10, 10, 10)
+  )
+
+combined_plot <- plot_fry / plot_smolt0 / plot_smolt1 + plot_layout(heights = c(1, 1, 1))
+windows()
+print(combined_plot)
+
+ggsave("Spring 1.2 Hatchery Releases (3 panels).png", plot = combined_plot,
+       width = 7, height = 7.5, units = "in", dpi = 300)
+```
+
+Code chunk to create the PNI plot
+```{r surv plot}
+
+pni_dat %>% ggplot(aes(x = recovery_year, y = PNI))+
+  geom_line()+
+  scale_x_continuous(limits = c(1992, 2024),
+                     breaks = seq(1992,2024,4))+
+  scale_y_continuous(limits = c(0,1),
+                     breaks = seq(0,1,0.1))+
+  labs(x = "Recovery Year", y = "PNI Value")+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "pni.png")
+
+```

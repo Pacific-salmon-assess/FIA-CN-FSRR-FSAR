@@ -1,6 +1,6 @@
 manUnit,stkName,stk,model,minER,maxER,cvERcan,cvERam,usERScalar,canERScalar,tauCycAge,alpha,beta0,sigma,sigmaProd,coef1,covarInit,mu_logCovar1,sig_logCovar1,min_logCovar,max_logCovar,aveGenTime,ageFirstRec,ageMaxRec,larkAlpha,larkBeta0,larkBeta1,larkBeta2,larkBeta3,larkSigma,meanRec2,meanRec3,meanRec4,meanRec5,meanRec6,medianRec,lowQRec,highQRec,meanDBE,sdDBE,medMA,meanForecast,sdForecast,shape.hatch,scale.hatch,max.hatchery.spawners
-FraserCN,Nicola River,1,ricker,0.005,0.95,0.25,0.66,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.035,0.912,0.053,0,NA,NA,NA,NA,NA,NA,NA,NA,1.030953,0.5832901,5665
-FraserCN,Bonaparte River,2,ricker,0.005,0.95,0.25,0.66,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.035,0.912,0.053,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,Deadman River,3,ricker,0.005,0.95,0.25,0.66,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.035,0.912,0.053,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,Louis Creek,4,ricker,0.005,0.95,0.25,0.66,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.035,0.912,0.053,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,Bessette Creek,5,ricker,0.005,0.95,0.25,0.66,1,1,0.6509379,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,0.035,0.912,0.053,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Nicola River,1,ricker,0.005,0.95,0.25,0.66,1,1,0.55,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,5,40,55,0,NA,NA,NA,NA,NA,NA,NA,NA,1.030953,0.5832901,5665
+FraserCN,Bonaparte River,2,ricker,0.005,0.95,0.25,0.66,1,1,0.55,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,5,40,55,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Deadman River,3,ricker,0.005,0.95,0.25,0.66,1,1,0.55,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,5,40,55,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Louis Creek,4,ricker,0.005,0.95,0.25,0.66,1,1,0.55,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,5,40,55,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+FraserCN,Bessette Creek,5,ricker,0.005,0.95,0.25,0.66,1,1,0.55,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,4,2,5,NA,NA,NA,NA,NA,NA,0,5,40,55,0,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA

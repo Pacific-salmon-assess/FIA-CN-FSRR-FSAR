@@ -169,5 +169,3 @@ poste <- post
 saveRDS(poste, "data\\post.rds")
 
 ```
-
-
