@@ -172,17 +172,23 @@ pred_dat_dfa <- predict(fit_dfa2, type = "ytT", interval = "confidence")$pred %>
     real_lo = boot::inv.logit(estimate + mean_logit_cyer - (1.96 * se))
   )
 
+plot_dat <- rbind(
+  pred_dat_dfa %>% 
+    mutate(
+      model = "dfa two trend"
+    ),
+  pred_dat_ss %>% 
+    mutate(
+      model = "state space"
+    )
+)
 
 marss_ribbon <- ggplot() +
-  geom_point(data = pred_dat_ss, aes(x = year, y = real_obs)) +
-  geom_line(data = pred_dat_ss, aes(x = year, y = real_estimate), 
-            color = "red") +
-  geom_ribbon(data = pred_dat_ss, aes(x = year, ymin = real_lo, ymax = real_up), 
-              fill = "red", alpha = 0.3) +
-  geom_line(data = pred_dat_dfa, aes(x = year, y = real_estimate),
-            color = "blue") +
-  geom_ribbon(data = pred_dat_dfa, aes(x = year, ymin = real_lo, ymax = real_up), 
-              fill = "blue", alpha = 0.3) +
+  geom_point(data = plot_dat, aes(x = year, y = real_obs, colour = model)) +
+  geom_line(data = plot_dat, aes(x = year, y = real_estimate, colour = model)) +
+  geom_ribbon(data = plot_dat, aes(x = year, ymin = real_lo, ymax = real_up,
+                                   fill = model), 
+              alpha = 0.3) +
   facet_wrap(
     ~ stock
   ) +
