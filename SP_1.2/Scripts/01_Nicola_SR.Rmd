@@ -47,25 +47,25 @@ This code chunk runs a Ricker stock-recruit model using Stan that incorporates a
 
 #un-comment the section below to re-run the Nicola stock-recruit analysis
 
-# #creating the list of data to feed to Stan
-# dat <- list("N" = nrow(nic_dat),                  #number of years of data
-#             "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
-#               sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
-#             "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
-#             "S" = nic_dat$total_spawners, #vector of total spawner abundance
-#             "mlogit_surv" = 0) #mean logit-transformed survival
-# 
-# #running the Stan model
-# fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
-#                     iter=10000, cores=6, thin = 1,
-#                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
-#                     pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
-#                            "umsy", "alpha_prime", "srep_prime"))
-# 
-# #fit summary
-# out <- summary(fit)
-# saveRDS(fit, "SP_1.2//Results/fit.rds")
-# saveRDS(out, "SP_1.2//Results/out.rds")
+#creating the list of data to feed to Stan
+dat <- list("N" = nrow(nic_dat),                  #number of years of data
+            "surv" = (logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
+              sd(logit(nic_dat$smolt_age3_survival)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
+            "S" = nic_dat$total_spawners, #vector of total spawner abundance
+            "mlogit_surv" = 0) #mean logit-transformed survival
+
+#running the Stan model
+fit <- stan(file = "SP_1.2/Scripts/Ricker.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "nu_Y", "nu_rec", "srep", "smsy_85", "smsy",
+                           "umsy", "alpha_prime", "srep_prime"))
+
+#fit summary
+out <- summary(fit)
+saveRDS(fit, "SP_1.2//Results/fit.rds")
+saveRDS(out, "SP_1.2//Results/out.rds")
 
 fit <- readRDS("SP_1.2//Results/fit.rds")
 out <- readRDS("SP_1.2//Results/out.rds")

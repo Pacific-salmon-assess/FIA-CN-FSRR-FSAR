@@ -169,6 +169,7 @@ Code chunk to create the Spring 1.2 exploitation rate plot
 ```{r ER plot}
 
 ER <- nic_ER %>% ggplot(aes(x = ret_year))+
+  geom_rect(aes(xmin = 1989, xmax = 2024, ymin = 0.04, ymax = 0.69), fill = "lightgrey", alpha = 0.01)+
   geom_line(aes(x = ret_year, y = tot_mort_um), colour = "black")+
   geom_hline(aes(yintercept = 0.34), colour = "red")+
   scale_x_continuous(limits = c(1989, 2024))+
