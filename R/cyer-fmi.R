@@ -1,7 +1,8 @@
 ## FMI and CWT-based CYER Comparison
 # Goal: Predict total exploitation rate as a function of FMI (based on GSI
 # sampling of marine fisheries + run recronstruction catch estimates)
-# 1) Calculate Canadian and total CYER exploitation rates
+# 1) Calculate Canadian and total CYER exploitation rates; available as marked
+# and unmarked, since FMI is not stratified take mean for CYER
 # 2) Calculate mean proportion of ER associated with US harvest since 2009
 # Sep. 10, 2024
 
@@ -12,129 +13,289 @@ library(readxl)
 ind_pal <- c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99")
 names(ind_pal) <- c("CHI", "HAR", "MSH", "SHU", "NIC")
 
+
 ## CLEAN CYER DATA -------------------------------------------------------------
+
+# sheet_names <- excel_sheets(
+#   here::here(
+#     "data", "ctc", 
+#     "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
+#   ))
+# 
+# stocks <- c("BQR", "CHI", "COW", "HAR", "MSH", "NIC", "PHI", "QUI",
+#             "EVIN", "RBT", "NWVI", "SWVI", "SHU")
+# matching_sheets <- sheet_names[
+#   sapply(sheet_names, function(x) any(grepl(paste(stocks, collapse = "|"), x)))
+#   ]
+# matching_sheets2 <- matching_sheets[
+#   sapply(matching_sheets, function(x) any(grepl("TM", x)))
+# ]
+# sheet_ids <- which(sheet_names %in% matching_sheets2)
+# 
+# 
+# # CWT based CYERs from Laura Tessier
+# # identify sheets w/ relevant data and associated stock name
+# new_col_names <- c(
+#   "year", "cwt_n", "ages", "aabm_seak_t", "aabm_seak_n", "aabm_seak_s", 
+#   "aabm_nbc_t", "aabm_nbc_s", "aabm_wcvi_t", "aabm_wcvi_s", "isbm_nbc_t", 
+#   "isbm_nbc_n", "isbm_nbc_s", "isbm_sbc_t", "isbm_sbc_n", "isbm_sbc_s", 
+#   "isbm_n_falcon_t", "isbm_n_falcon_s", "isbm_s_falcon_t", "isbm_s_falcon_s", 
+#   "isbm_wac_n", "isbm_puget_n", "isbm_puget_s", "term_seak_t", "term_seak_n",
+#   "term_seak_s", "term_can_n", "term_can_s", "term_sus_t", "term_sus_n", 
+#   "term_sus_s", "stray", "esc", "comment"
+# ) 
+# 
+# cwt_dat <- purrr::map2(
+#   sheet_ids, matching_sheets2, 
+#   function(x, y) {
+#     dum <- read_xlsx(
+#       here::here(
+#         "data", "ctc", 
+#         "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
+#       ),
+#       sheet = x,
+#       skip = 6,
+#       col_names = FALSE
+#     )
+#     colnames(dum) <- new_col_names
+#     dum %>% 
+#       mutate(
+#         indicator = str_split(y, " ") %>% unlist() %>% .[1],
+#         mark = str_split(y, " ") %>% unlist() %>% .[2]
+#       ) %>% 
+#       # remove five year averages at bottom of table
+#       filter(!grepl("-", year))
+#   }
+# ) %>% 
+#   bind_rows()
+# 
+# # southern US harvest not available for 2023; calculate mean values 2016-22 for
+# # each fishery, add to original dataset for 23 then rescale
+# cwt_dat_long <- cwt_dat %>% 
+#   filter(comment == "ok",
+#          # focus only on unmarked given stocks of interest
+#          mark == "unmarked") %>% 
+#   pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
+#                         starts_with("term"), stray, esc),
+#                names_to = "strata", values_to = "percent_run") %>% 
+#   mutate(
+#     year = as.numeric(year),
+#     southern_us = ifelse(
+#       (grepl("falcon", strata) | grepl("_sus_", strata) | 
+#          grepl("puget", strata) | grepl("wac", strata)),
+#       TRUE,
+#       FALSE
+#     ),
+#     canadian_er = ifelse(
+#       (grepl("nbc", strata) | grepl("sbc", strata) | 
+#          grepl("wcvi", strata) | grepl("term_can", strata)),
+#       TRUE,
+#       FALSE
+#     ),
+#     missing_from_fmi = ifelse(
+#       strata %in% c("isbm_nbc_t", "isbm_nbc_n", "isbm_sbc_t", "isbm_sbc_n",
+#                     "term_can_n"),
+#       TRUE,
+#       FALSE
+#     )
+#   ) 
+# 
+# # calculate mean southern US exploitation rate to use since 2023 values 
+# # unavailable
+# mean_sus <- cwt_dat_long %>% 
+#   filter(year > 2015 & year < 2023) %>% 
+#   group_by(strata, indicator) %>% 
+#   summarize(mean_percent_run = mean(percent_run))
+# 
+# 
+# cwt_dat_long2 <- left_join(cwt_dat_long, mean_sus, 
+#                            by = c("indicator", "strata")) %>% 
+#   mutate(
+#     percent_run = ifelse(year == "2023" & southern_us == TRUE,
+#                          mean_percent_run,
+#                          percent_run),
+#     smu = case_when(
+#       indicator == "NIC" ~ "spring_1.2",
+#       indicator %in% c("SHU", "MSH") ~ "summer_0.3",
+#       indicator %in% c("CHI", "HAR") ~ "fall_0.3",
+#       TRUE ~ NA_character_
+#     )
+#   ) %>% 
+#   filter(
+#     !is.na(smu)
+#   ) %>% 
+#   group_by(
+#     indicator, year
+#   ) %>% 
+#   mutate(
+#     total_percent = sum(percent_run)
+#   ) %>% 
+#   ungroup() %>% 
+#   mutate(
+#     scaled_percent = percent_run / total_percent
+#   )
+
 
 sheet_names <- excel_sheets(
   here::here(
-    "data", "ctc", 
-    "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
+    "data", "ctc",
+    "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-unmarked_noTBRSEAK.xlsx"
   ))
+# restrict to FR stocks
+stocks <- c("CHI", "HAR", "MSH", "NIC", "SHU")
 
-stocks <- c("BQR", "CHI", "COW", "HAR", "MSH", "NIC", "PHI", "QUI",
-            "EVIN", "RBT", "NWVI", "SWVI", "SHU")
 matching_sheets <- sheet_names[
   sapply(sheet_names, function(x) any(grepl(paste(stocks, collapse = "|"), x)))
-  ]
+]
 matching_sheets2 <- matching_sheets[
-  sapply(matching_sheets, function(x) any(grepl("TM", x)))
+  sapply(matching_sheets, function(x) any(grepl("total mort", x)))
 ]
 sheet_ids <- which(sheet_names %in% matching_sheets2)
 
-
-# CWT based CYERs from Laura Tessier
 # identify sheets w/ relevant data and associated stock name
 new_col_names <- c(
-  "year", "cwt_n", "ages", "aabm_seak_t", "aabm_seak_n", "aabm_seak_s", 
-  "aabm_nbc_t", "aabm_nbc_s", "aabm_wcvi_t", "aabm_wcvi_s", "isbm_nbc_t", 
-  "isbm_nbc_n", "isbm_nbc_s", "isbm_sbc_t", "isbm_sbc_n", "isbm_sbc_s", 
-  "isbm_n_falcon_t", "isbm_n_falcon_s", "isbm_s_falcon_t", "isbm_s_falcon_s", 
+  "year", "cwt_n", "ages", "aabm_seak_t", "aabm_seak_n", "aabm_seak_s",
+  "aabm_nbc_t", "aabm_nbc_s", "aabm_wcvi_t", "aabm_wcvi_s", "isbm_nbc_t",
+  "isbm_nbc_n", "isbm_nbc_s", "isbm_sbc_t", "isbm_sbc_n", "isbm_sbc_s",
+  "isbm_n_falcon_t", "isbm_n_falcon_s", "isbm_s_falcon_t", "isbm_s_falcon_s",
   "isbm_wac_n", "isbm_puget_n", "isbm_puget_s", "term_seak_t", "term_seak_n",
-  "term_seak_s", "term_can_n", "term_can_s", "term_sus_t", "term_sus_n", 
+  "term_seak_s", "term_can_n", "term_can_s", "term_sus_t", "term_sus_n",
   "term_sus_s", "stray", "esc", "comment"
-) 
-
-cwt_dat <- purrr::map2(
-  sheet_ids, matching_sheets2, 
+)
+cwt_dat_unmarked <- purrr::map2(
+  sheet_ids, matching_sheets2,
   function(x, y) {
     dum <- read_xlsx(
       here::here(
-        "data", "ctc", 
-        "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
+        "data", "ctc",
+        "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-unmarked_noTBRSEAK.xlsx"
       ),
       sheet = x,
       skip = 6,
       col_names = FALSE
     )
     colnames(dum) <- new_col_names
-    dum %>% 
+    dum %>%
       mutate(
         indicator = str_split(y, " ") %>% unlist() %>% .[1],
-        mark = str_split(y, " ") %>% unlist() %>% .[2]
-      ) %>% 
+        mark = "unmarked"
+      ) %>%
       # remove five year averages at bottom of table
-      filter(!grepl("-", year))
+      filter(!grepl("-", year),
+             ! year == "2024")
   }
-) %>% 
+) %>%
   bind_rows()
 
-# southern US harvest not available for 2023; calculate mean values 2016-22 for
-# each fishery, add to original dataset for 23 then rescale
-cwt_dat_long <- cwt_dat %>% 
-  filter(comment == "ok",
-         # focus only on unmarked given stocks of interest
-         mark == "unmarked") %>% 
+cwt_dat_marked <- purrr::map2(
+  sheet_ids, matching_sheets2,
+  function(x, y) {
+    dum <- read_xlsx(
+      here::here(
+        "data", "ctc",
+        "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-marked_noTBRSEAK.xlsx"
+      ),
+      sheet = x,
+      skip = 6,
+      col_names = FALSE
+    )
+    colnames(dum) <- new_col_names
+    dum %>%
+      mutate(
+        indicator = str_split(y, " ") %>% unlist() %>% .[1],
+        mark = "marked"
+      ) %>%
+      # remove five year averages at bottom of table
+      filter(!grepl("-", year),
+             ! year == "2024")
+  }
+) %>%
+  bind_rows()
+
+cwt_dat_long <- rbind(cwt_dat_unmarked, cwt_dat_marked) %>%
+  filter(comment == "ok") %>%
+  mutate(indicator = paste(indicator, mark, sep = "_")) %>%
   pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
                         starts_with("term"), stray, esc),
-               names_to = "strata", values_to = "percent_run") %>% 
+               names_to = "strata", values_to = "percent_run") %>%
   mutate(
     year = as.numeric(year),
-    southern_us = ifelse(
-      (grepl("falcon", strata) | grepl("_sus_", strata) | 
-         grepl("puget", strata) | grepl("wac", strata)),
-      TRUE,
-      FALSE
-    ),
     canadian_er = ifelse(
-      (grepl("nbc", strata) | grepl("sbc", strata) | 
+      (grepl("nbc", strata) | grepl("sbc", strata) |
          grepl("wcvi", strata) | grepl("term_can", strata)),
       TRUE,
       FALSE
-    ),
-    missing_from_fmi = ifelse(
-      strata %in% c("isbm_nbc_t", "isbm_nbc_n", "isbm_sbc_t", "isbm_sbc_n",
-                    "term_can_n"),
+    )
+  )
+
+cwt_dat_long2 <- cwt_dat_long %>%
+  group_by(
+    indicator, year
+  ) %>%
+  mutate(
+    total_percent = sum(percent_run)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    scaled_percent = percent_run / total_percent
+  )
+
+
+## import Chilko data generated by CW and NS
+cko_marked <- read.csv(
+  here::here(
+    "data", "ctc", "cmz_CKO_marked_dec_2025.csv"
+  )
+) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    mark = "marked"
+  )
+cko_unmarked <- read.csv(
+  here::here(
+    "data", "ctc", "cmz_CKO_marked_dec_2025.csv"
+  )
+) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    mark = "unmarked"
+  )
+cko_long <- rbind(cko_marked, cko_unmarked) %>% 
+  filter(criteria == "ok") %>%
+  mutate(indicator = paste(stock, mark, sep = "_")) %>%
+  pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
+                        starts_with("term"), stray, escap),
+               names_to = "strata", values_to = "percent_run") %>%
+  mutate(
+    year = as.numeric(catch_year),
+    canadian_er = ifelse(
+      grepl("canada", strata),
       TRUE,
       FALSE
     )
   ) 
 
-# calculate mean southern US exploitation rate to use since 2023 values 
-# unavailable
-mean_sus <- cwt_dat_long %>% 
-  filter(year > 2015 & year < 2023) %>% 
-  group_by(strata, indicator) %>% 
-  summarize(mean_percent_run = mean(percent_run))
-
-
-cwt_dat_long2 <- left_join(cwt_dat_long, mean_sus, 
-                           by = c("indicator", "strata")) %>% 
-  mutate(
-    percent_run = ifelse(year == "2023" & southern_us == TRUE,
-                         mean_percent_run,
-                         percent_run),
-    smu = case_when(
-      indicator == "NIC" ~ "spring_1.2",
-      indicator %in% c("SHU", "MSH") ~ "summer_0.3",
-      indicator %in% c("CHI", "HAR") ~ "fall_0.3",
-      TRUE ~ NA_character_
-    )
-  ) %>% 
-  filter(
-    !is.na(smu)
-  ) %>% 
+cko_long2 <- cko_long %>%
   group_by(
     indicator, year
-  ) %>% 
+  ) %>%
   mutate(
     total_percent = sum(percent_run)
-  ) %>% 
-  ungroup() %>% 
+  ) %>%
+  ungroup() %>%
   mutate(
     scaled_percent = percent_run / total_percent
   )
 
+
+
 # calculate Canadian exploitation rate
-can_cyer <- cwt_dat_long2 %>% 
+can_cyer <- rbind(
+  cwt_dat_long2 %>% 
+    select(indicator, year, canadian_er, scaled_percent),
+  cko_long2 %>% 
+    select(indicator, year, canadian_er, scaled_percent)
+  ) %>% 
   filter(canadian_er == TRUE) %>% 
   group_by(
     indicator, year 
@@ -144,14 +305,15 @@ can_cyer <- cwt_dat_long2 %>%
   )
 
 
-# import Chilko data generated by CW and NK
-# cko_dat <- readRDS(here::here("data", "CKO_ERA_Result.RDS"))
-
-
 #combine stray and escapement, then use to calculate total exploitation
-cyer_dat <- cwt_dat_long2 %>% 
-  filter(strata %in% c("esc", "stray")) %>% 
-  group_by(year, indicator, smu) %>% 
+cyer_dat <- rbind(
+  cwt_dat_long2 %>% 
+    select(indicator, year, strata, canadian_er, scaled_percent),
+  cko_long2 %>% 
+    select(indicator, year, strata, canadian_er, scaled_percent)
+) %>% 
+  filter(strata %in% c("esc", "stray", "escap")) %>% 
+  group_by(year, indicator) %>% 
   summarize(
     percent_escaped = sum(scaled_percent)
   ) %>% 
@@ -160,11 +322,18 @@ cyer_dat <- cwt_dat_long2 %>%
     total_er = 1 - percent_escaped
   ) %>% 
   select(
-    indicator, smu, year, total_er
+    indicator, year, total_er
   ) %>% 
   left_join(., can_cyer, by = c("year", "indicator")) %>% 
   mutate(
-    us_er = total_er - can_er
+    us_er = total_er - can_er,
+    smu = case_when(
+      indicator == "NIC" ~ "spring_1.2",
+      indicator == "CKO" ~ "summer_1.2",
+      indicator %in% c("SHU", "MSH") ~ "summer_0.3",
+      indicator %in% c("CHI", "HAR") ~ "fall_0.3",
+      TRUE ~ NA_character_
+    )
   ) 
 
 
@@ -176,23 +345,6 @@ cyer_ts <- ggplot(cyer_dat) +
 
 us_er_box <- ggplot(cyer_dat) + 
   geom_boxplot(aes(x = indicator, y= us_er)) +
-  ggsidekick::theme_sleek()
-
-
-
-# check for relative magnitude of exploitation in missing strata
-
-missing_fmi <- cwt_dat_long2 %>% 
-  filter(missing_from_fmi == TRUE) %>% 
-  group_by(
-    indicator, year 
-  ) %>% 
-  summarize(
-    missing_er = sum(scaled_percent)
-  )
-ggplot(missing_fmi) +
-  geom_line(aes(x = year, y = missing_er)) +
-  facet_wrap(~indicator) +
   ggsidekick::theme_sleek()
 
 
