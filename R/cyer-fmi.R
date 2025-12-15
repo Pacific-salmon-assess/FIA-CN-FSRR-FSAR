@@ -328,10 +328,10 @@ cyer_dat <- rbind(
   mutate(
     us_er = total_er - can_er,
     smu = case_when(
-      indicator == "NIC" ~ "spring_1.2",
-      indicator == "CKO" ~ "summer_1.2",
-      indicator %in% c("SHU", "MSH") ~ "summer_0.3",
-      indicator %in% c("CHI", "HAR") ~ "fall_0.3",
+      grepl("NIC", indicator) ~ "spring_1.2",
+      grepl("CKO", indicator) ~ "summer_1.2",
+      grepl("SHU", indicator) |  grepl("MSH", indicator) ~ "summer_0.3",
+      grepl("CHI", indicator) |  grepl("HAR", indicator) ~ "fall_0.3",
       TRUE ~ NA_character_
     )
   ) 
@@ -429,43 +429,74 @@ dev.off()
 
 ## CLEAN FMI DATA --------------------------------------------------------------
 
-# GSI based run reconstruction derived exploitation rates from a) Dobson et 
-# al. 2020 (2018 and earlier) and b) Fraser River FMI tech memo (2019-2023); 
-# assembled by A Mesmer, updated by C Freshwater to include sector specific 
-# ERs in recent years 
-rr_cyer_dat1 <-  read_xlsx(
-  here::here("data", "dobson_er_data.xlsx"),
-  sheet = 1
+# # GSI based run reconstruction derived exploitation rates from a) Dobson et 
+# # al. 2020 (2018 and earlier) and b) Fraser River FMI tech memo (2019-2023); 
+# # assembled by A Mesmer, updated by C Freshwater to include sector specific 
+# # ERs in recent years 
+# rr_cyer_dat1 <-  read_xlsx(
+#   here::here("data", "dobson_er_data.xlsx"),
+#   sheet = 1
+# ) %>% 
+#   janitor::clean_names() %>% 
+#   mutate(
+#     year = as.character(year),
+#     smu = case_when(
+#       smu == "Sp. 1.2" ~ "spring_1.2",
+#       smu == "Sp. 1.3" ~ "spring_1.3",
+#       smu == "Su. 1.3" ~ "summer_1.3",
+#       smu == "Su. 0.3" ~ "summer_0.3",
+#       smu == "Fa. 0.3" ~ "fall_0.3",
+#       TRUE ~ smu
+#     ),
+#     # convert percentages to proportional ERs
+#     across(
+#       where(is.numeric), ~ .x / 100
+#     ),
+#     source = ifelse(
+#       grepl("Dobson", source), "dobson", "fmi_memo"
+#     ),
+#     year = as.numeric(year)
+#   ) 
+# 
+# rr_cyer_dat_trim <- rr_cyer_dat1 %>% 
+#   select(year, smu, fmi = total) 
+
+
+## import updated FMI data provided by BJ
+fmi_dat1 <- read.csv(
+  here::here("data", "fmi_updated_dec2025.csv")
 ) %>% 
-  janitor::clean_names() %>% 
+  janitor::clean_names() %>%
+  select(-starts_with("avg")) %>% 
+  pivot_longer(
+    cols = starts_with("x"), names_prefix = "x", values_to = "ppn", 
+    names_to = "year"
+  ) %>% 
   mutate(
-    year = as.character(year),
-    smu = case_when(
-      smu == "Sp. 1.2" ~ "spring_1.2",
-      smu == "Sp. 1.3" ~ "spring_1.3",
-      smu == "Su. 1.3" ~ "summer_1.3",
-      smu == "Su. 0.3" ~ "summer_0.3",
-      smu == "Fa. 0.3" ~ "fall_0.3",
-      TRUE ~ smu
-    ),
-    # convert percentages to proportional ERs
-    across(
-      where(is.numeric), ~ .x / 100
-    ),
-    source = ifelse(
-      grepl("Dobson", source), "dobson", "fmi_memo"
-    ),
     year = as.numeric(year)
-  ) 
+  )
 
-rr_cyer_dat_trim <- rr_cyer_dat1 %>% 
-  select(year, smu, fmi = total) 
-
-
-
-dat <- left_join(cyer_dat, rr_cyer_dat_trim, by = c("year", "smu")) %>% 
+fmi_can_mar <- fmi_dat1 %>% 
   filter(
-    !is.na(fmi)
+    grepl("sbc", strata) | grepl("nbc", strata)
+  ) %>% 
+  group_by(
+    smu, year
+  ) %>% 
+  summarize(
+    marine_fmi = sum(ppn)
+  )
+  
+
+ggplot(fmi_can_mar) + 
+  geom_point(aes(x = year, y= can_er)) + 
+  facet_wrap(~smu) +
+  ggsidekick::theme_sleek()
+
+
+dat <- left_join(cyer_dat, fmi_can_mar, by = c("year", "smu")) %>% 
+  filter(
+    !is.na(marine_fmi)
   ) 
 saveRDS(dat, here::here("data", "cyer_fmi_dat.rds"))
 
@@ -477,7 +508,6 @@ dat <- readRDS(here::here("data", "cyer_fmi_dat.rds"))
 
 # remove years before 2019 when FMI values are dubious
 dat_trim <-  dat %>%
-  filter(year > 2018) %>% 
   mutate(
     se_fmi = fmi * 0.1,
     se_fmi2 = fmi * 0.2
