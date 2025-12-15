@@ -66,6 +66,7 @@ generated quantities {
   real alpha_prime_sp;
   real umsy_su;
   real umsy_sp;
+  real umsy_nic;
   nu_Y[1] = normal_rng(mu[1], sigma);
   nu_rec[1] = exp(nu_Y[1]) * S[1];
   for(i in 2:N){
@@ -80,5 +81,6 @@ generated quantities {
   alpha_prime_sp = log(exp(alpha_prime_nic) * (f_sp / f_nic));
   umsy_su = 1 - lambert_w0(exp(1 - (alpha_su)));
   umsy_sp = 1 - lambert_w0(exp(1 - (alpha_sp)));
+  umsy_nic = 1 - lambert_w0(exp(1 - (alpha)));
 }
 

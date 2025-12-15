@@ -1,0 +1,103 @@
+---
+title: "Benchmark Estimation"
+author: "Colin Bailey"
+date: "2025-06-05"
+output: html_document
+---
+
+This code chunk loads the required packages and the data. Note the commented-out code for installing the specific version of samSim required.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("remotes")
+#library(remotes)
+#remotes::install_github("Pacific-salmon-assess/samSim", ref="sbccnk-hatch", force=TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+library(shinystan)
+library(bayesplot)
+library(pkgbuild)
+library(boot)
+library(loo)
+library(MASS)
+library(samSim)
+library(samEst)
+
+pkgbuild::has_build_tools(debug = TRUE)
+rstan_options(auto_write=T)
+options(mc.cores = parallel::detectCores())
+
+#baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Spring 1.2 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
+old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
+
+```
+
+This code chunk uses the Parken Habitat Model to estimate SREP for each SP and SU 1.3 CN CU based on watershed area. The SREP values used for the dependent variable in the Parken model are calculated as SREP = alpha prime / beta. Thus, once SREPs posteriors are estimated, to extract beta or Smax (Smax = 1/beta) from predicted SREP, we used the alpha prime that was estimated for SP and SU 1.3 CN in "01_SR_parameters.Rmd". As in the simulation model (see 03_SP_SU_1.3_SIM.Rmd), we assumed that the productivity (alpha) of the Nicola population expanded for relative differences in fecundity between SP 1.2 and SP & SU 1.3 CN is representative of all populations in Fraser Spring 1.3 and Summer 1.3, respectively.
+
+```{r SREP & benchmarks estimation}
+
+###Estimate srep from watershed areas for populations without beta estimates###
+nu_wa_dat <- read.csv("data\\CN1.3_watershed_areas.csv")
+nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU)
+
+source("R\\srep_wa_analysis_predict.R") #R script that runs the Parken Habitat Model and produces a posterior prediction for each new watershed (1 column per watershed)
+
+
+###new code here, need to test!
+nu_srep <- srep_est(nu_wa, old_wa)
+names(nu_srep) <- c(unique(nu_wa$pop)) #label the columns of the posterior
+nu_srep <- nu_srep[sample(nrow(nu_srep), 1000),] %>% pivot_longer(names_to = "pop", values_to = "srep", cols = c(1:11)) %>% 
+  left_join(., nu_wa, by = "pop") %>% dplyr::select(-wa, CU = pop) #srep posterior, 1000 samples each per population
+
+#calculate Smax (Smax = srep / alpha prime) for each population without an estimate of beta
+#carries posterior of nu_srep
+nu_smax <- nu_srep %>% mutate(smax = srep / ifelse(smu == "SP_1.3", alpha_prime_sp$alpha_prime_sp, alpha_prime_su$alpha_prime_su))
+
+#smax summary
+summ_smax <- nu_smax %>% group_by(CU) %>% 
+  summarize(mu_smax = mean(smax),
+            CI2.5_smax = quantile(smax, probs = 0.025),
+            CI50_smax = quantile(smax, probs = 0.5),
+            CI97.5_smax = quantile(smax, probs = 0.975)) %>% 
+  left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
+
+#alpha summary (assumed to be the same across all CUs within a given SMU)
+alpha_sp1.3 <- as.vector(extract(fit)[12])
+alpha_su1.3 <- as.vector(extract(fit)[11])
+
+qsp1.3 <- quantile(alpha_sp1.3$alpha_sp, probs = c(0.025, 0.5, 0.975))
+param = c("m_a", "CI2.5_a", "CI50_a", "CI97.5_a")
+value = c(mean(alpha_sp1.3$alpha_sp), qsp1.3[[1]], qsp1.3[[2]], qsp1.3[[3]])
+summ_alpha_sp1.3 <- data.frame(param, value)
+
+qsu1.3 <- quantile(alpha_su1.3$alpha_su, probs = c(0.025, 0.5, 0.975))
+param = c("m_a", "CI2.5_a", "CI50_a", "CI97.5_a")
+value = c(mean(alpha_su1.3$alpha_su), qsu1.3[[1]], qsu1.3[[2]], qsu1.3[[3]])
+summ_alpha_su1.3 <- data.frame(param, value)
+
+#beta summary
+summ_beta <- nu_smax %>% group_by(CU) %>% 
+  summarize(mu_beta = mean(1/smax),
+            CI2.5_beta = quantile(1/smax, probs = 0.025),
+            CI50_beta = quantile(1/smax, probs = 0.5),
+            CI97.5_beta = quantile(1/smax, probs = 0.975)) %>% 
+  left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
+
+#0.2 * Smax (LBB)
+summ_smax0.2 <- nu_smax %>% group_by(CU) %>% 
+  summarize(mu_lbb = mean(smax*0.2),
+            CI2.5_lbb = quantile(smax*0.2, probs = 0.025),
+            CI50_lbb = quantile(smax*0.2, probs = 0.5),
+            CI97.5_lbb = quantile(smax*0.2, probs = 0.975)) %>% 
+  left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
+
+
+###in case they still want 85% SMSY calculated, use this package: https://www.rdocumentation.org/packages/lamW/versions/2.2.5/topics/lambertW
+
+##and use this equation from the Stan models: smsy = ((1 - lambert_w0(exp(1 - (alpha)))) / (beta))
+
+```
+
