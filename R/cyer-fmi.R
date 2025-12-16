@@ -10,8 +10,8 @@
 library(tidyverse)
 library(readxl)
 
-ind_pal <- c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99")
-names(ind_pal) <- c("CHI", "HAR", "MSH", "SHU", "NIC")
+ind_pal <- c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#54278f")
+names(ind_pal) <- c("CHI", "HAR", "MSH", "SHU", "NIC", "CKO")
 
 
 ## CLEAN CYER DATA -------------------------------------------------------------
@@ -214,7 +214,8 @@ cwt_dat_marked <- purrr::map2(
 
 cwt_dat_long <- rbind(cwt_dat_unmarked, cwt_dat_marked) %>%
   filter(comment == "ok") %>%
-  mutate(indicator = paste(indicator, mark, sep = "_")) %>%
+  mutate(stock = indicator,
+         indicator = paste(indicator, mark, sep = "_")) %>%
   pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
                         starts_with("term"), stray, esc),
                names_to = "strata", values_to = "percent_run") %>%
@@ -230,7 +231,7 @@ cwt_dat_long <- rbind(cwt_dat_unmarked, cwt_dat_marked) %>%
 
 cwt_dat_long2 <- cwt_dat_long %>%
   group_by(
-    indicator, year
+    stock, indicator, year
   ) %>%
   mutate(
     total_percent = sum(percent_run)
@@ -269,7 +270,7 @@ cko_long <- rbind(cko_marked, cko_unmarked) %>%
   mutate(
     year = as.numeric(catch_year),
     canadian_er = ifelse(
-      grepl("canada", strata),
+      grepl("canada", strata) | grepl("term", strata),
       TRUE,
       FALSE
     )
@@ -277,7 +278,7 @@ cko_long <- rbind(cko_marked, cko_unmarked) %>%
 
 cko_long2 <- cko_long %>%
   group_by(
-    indicator, year
+    stock, indicator, year
   ) %>%
   mutate(
     total_percent = sum(percent_run)
@@ -308,12 +309,12 @@ can_cyer <- rbind(
 #combine stray and escapement, then use to calculate total exploitation
 cyer_dat <- rbind(
   cwt_dat_long2 %>% 
-    select(indicator, year, strata, canadian_er, scaled_percent),
+    select(stock, indicator, year, strata, canadian_er, scaled_percent),
   cko_long2 %>% 
-    select(indicator, year, strata, canadian_er, scaled_percent)
+    select(stock, indicator, year, strata, canadian_er, scaled_percent)
 ) %>% 
   filter(strata %in% c("esc", "stray", "escap")) %>% 
-  group_by(year, indicator) %>% 
+  group_by(stock, year, indicator) %>% 
   summarize(
     percent_escaped = sum(scaled_percent)
   ) %>% 
@@ -322,25 +323,35 @@ cyer_dat <- rbind(
     total_er = 1 - percent_escaped
   ) %>% 
   select(
-    indicator, year, total_er
+    stock, indicator, year, total_er
   ) %>% 
   left_join(., can_cyer, by = c("year", "indicator")) %>% 
   mutate(
     us_er = total_er - can_er,
     smu = case_when(
       grepl("NIC", indicator) ~ "spring_1.2",
-      grepl("CKO", indicator) ~ "summer_1.2",
+      grepl("CKO", indicator) ~ "summer_1.3",
       grepl("SHU", indicator) |  grepl("MSH", indicator) ~ "summer_0.3",
       grepl("CHI", indicator) |  grepl("HAR", indicator) ~ "fall_0.3",
       TRUE ~ NA_character_
     )
-  ) 
+  ) %>% 
+  group_by(
+    stock, year, smu
+  ) %>% 
+  summarize(
+    total_er = mean(total_er),
+    can_er = mean(can_er),
+    us_er = mean(us_er)
+  ) %>% 
+  ungroup
+  
 
 
 cyer_ts <- ggplot(cyer_dat) + 
   geom_point(aes(x = year, y= can_er)) + 
   geom_point(aes(x = year, y= total_er), color = "red") + 
-  facet_wrap(~indicator) +
+  facet_wrap(~stock) +
   ggsidekick::theme_sleek()
 
 us_er_box <- ggplot(cyer_dat) + 
@@ -476,47 +487,54 @@ fmi_dat1 <- read.csv(
     year = as.numeric(year)
   )
 
-fmi_can_mar <- fmi_dat1 %>% 
-  filter(
-    grepl("sbc", strata) | grepl("nbc", strata)
-  ) %>% 
+fmi_dat <- fmi_dat1 %>% 
+  # filter(
+  #   grepl("sbc", strata) | grepl("nbc", strata)
+  # ) %>% 
   group_by(
     smu, year
   ) %>% 
   summarize(
-    marine_fmi = sum(ppn)
-  )
+    fmi = sum(ppn)
+  ) %>% 
+  ungroup()
   
 
-ggplot(fmi_can_mar) + 
-  geom_point(aes(x = year, y= can_er)) + 
+ggplot(fmi_dat) + 
+  geom_point(aes(x = year, y= fmi)) + 
   facet_wrap(~smu) +
   ggsidekick::theme_sleek()
 
 
-dat <- left_join(cyer_dat, fmi_can_mar, by = c("year", "smu")) %>% 
+dat <- left_join(cyer_dat, fmi_dat, by = c("year", "smu")) %>% 
   filter(
-    !is.na(marine_fmi)
+    !is.na(fmi)
   ) 
 saveRDS(dat, here::here("data", "cyer_fmi_dat.rds"))
 
 
 ## EXPLORE COMBINED DATA -------------------------------------------------------
 
-dat <- readRDS(here::here("data", "cyer_fmi_dat.rds"))
-
-
-# remove years before 2019 when FMI values are dubious
-dat_trim <-  dat %>%
+dat <- readRDS(here::here("data", "cyer_fmi_dat.rds")) %>%
+  ungroup() %>% 
   mutate(
-    se_fmi = fmi * 0.1,
-    se_fmi2 = fmi * 0.2
+    sd_fmi = fmi * 0.1, #converts CV to SD to pass to BRMS
+    logit_fmi = qlogis(fmi),
+    sd_fmi_flat = 0.01, # median of sd_fmi
+    sd_logit_fmi = sd_fmi / (fmi * (1 - fmi))
   )
 
 
-fmi_cyer_cor <- ggplot(dat_trim) +
-  geom_point(aes(x = fmi, y = can_er, fill = indicator), shape = 21) +
-  # geom_abline(aes(intercept = 0, slope = 1), linetype = 2) +
+fmi_cyer_cor <- ggplot(dat) +
+  geom_point(aes(x = fmi, y = can_er, fill = stock), shape = 21) +
+  geom_abline(aes(intercept = 0, slope = 1), linetype = 2) +
+  scale_fill_manual(values = ind_pal) +
+  ggsidekick::theme_sleek() 
+
+fmi_cyer_cor_logit <- ggplot(dat) +
+  geom_point(aes(x = qlogis(fmi), y = qlogis(can_er), fill = stock), 
+             shape = 21) +
+  geom_abline(aes(intercept = 0, slope = 1), linetype = 2) +
   scale_fill_manual(values = ind_pal) +
   ggsidekick::theme_sleek() 
 
@@ -528,31 +546,21 @@ library(DHARMa)
 
 # random ints
 fit_brms1 <- brm(
-  can_er ~ me(fmi, se_fmi) + (1 | indicator), 
-  data = dat_trim,
+  can_er ~ me(logit_fmi, sd_logit_fmi) + (1 | stock),
+  data = dat,
   family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
+  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
+            prior(normal(0, 1), class = "Intercept"),  # Prior for intercept
             prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
+  chains = 4, cores = 4, iter = 2000, warmup = 1000,
   control = list(adapt_delta = 0.95)
   )
 fit_brms1b <- brm(
-  can_er ~ me(fmi, se_fmi2) + (1 | indicator), 
-  data = dat_trim,
+  can_er ~ logit_fmi + (1 | stock), 
+  data = dat,
   family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-fit_brms1c <- brm(
-  can_er ~ fmi + (1 | indicator), 
-  data = dat_trim,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
+  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
+            prior(normal(0, 1), class = "Intercept"),  # Prior for intercept
             prior(exponential(1), class = "phi")),
   chains = 4, cores = 4, iter = 2000, warmup = 1000,
   control = list(adapt_delta = 0.95)
@@ -560,133 +568,127 @@ fit_brms1c <- brm(
 
 
 # random slopes and ints
-fit_brms2 <- brm(
-  can_er ~ me(fmi, se_fmi) + (1 + me(fmi, se_fmi) | indicator), 
-  data = dat_trim,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(exponential(2), class = "sd"),
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
+# fit_brms2 <- brm(
+#   can_er ~ me(marine_fmi, sd_fmi) + (1 + me(marine_fmi, sd_fmi) | stock), 
+#   data = dat,
+#   family = Beta(link = "logit"),  # Beta regression
+#   prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
+#             prior(exponential(2), class = "sd"),
+#             prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
+#             prior(exponential(1), class = "phi")),
+#   chains = 4, cores = 4, iter = 3000, warmup = 1000,
+#   control = list(adapt_delta = 0.95)
+# )
 fit_brms2b <- brm(
-  can_er ~ me(fmi, se_fmi2) + (1 + me(fmi, se_fmi2) | indicator), 
-  data = dat_trim,
+  can_er ~ logit_fmi + (1 + logit_fmi | stock), 
+  data = dat,
   family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
+  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
             prior(exponential(2), class = "sd"),
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-fit_brms2c <- brm(
-  can_er ~ fmi + (1 + fmi | indicator), 
-  data = dat_trim,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(exponential(2), class = "sd"),
-            prior(normal(0, 2), class = "Intercept"),  # Prior for intercept
+            prior(normal(0, 1), class = "Intercept"),  # Prior for intercept
             prior(exponential(1), class = "phi")),
   chains = 4, cores = 4, iter = 3000, warmup = 1000,
   control = list(adapt_delta = 0.95)
 )
 
+
 # constrained to be nearly through 0 with strong informative prior
-fit_brms3 <- brm(
-  can_er ~ me(fmi, se_fmi) + (me(fmi, se_fmi) | indicator), 
-  data = dat_trim,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(
-    # very informative prior on the fixed‐effect intercept
-    prior(normal(-10, 0.25), class = "Intercept"),
-    # weakly informative prior on the fixed slope
-    prior(normal(1, 2.5), class = "b"),
-    # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(50), class = "sd", group = "indicator",
-          coef = "Intercept"),
-    # fairly tight zero‐centered prior on the SD of the random slope
-    prior(exponential(2), class = "sd", group = "indicator", 
-          coef = "mefmise_fmi"),
-    # prior on the Beta‐precision
-    prior(exponential(1), class = "phi")
-  ),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-  )
+# fit_brms3 <- brm(
+#   can_er ~ me(marine_fmi, sd_fmi_flat) + (me(marine_fmi, sd_fmi_flat) | stock), 
+#   data = dat,
+#   family = Beta(link = "logit"),  # Beta regression
+#   prior = c(
+#     # very informative prior on the fixed‐effect intercept
+#     prior(normal(-10, 0.25), class = "Intercept"),
+#     # weakly informative prior on the fixed slope
+#     prior(normal(1, 2.5), class = "b"),
+#     # very tight zero‐centered prior on the SD of the random intercept
+#     prior(exponential(50), class = "sd", group = "stock",
+#           coef = "Intercept"),
+#     # fairly tight zero‐centered prior on the SD of the random slope
+#     prior(exponential(2), class = "sd", group = "stock", 
+#           coef = "memarine_fmisd_fmi_flat"),
+#     # prior on the Beta‐precision
+#     prior(exponential(1), class = "phi")
+#   ),
+#   chains = 4, cores = 4, iter = 3000, warmup = 1000,
+#   control = list(adapt_delta = 0.95)
+#   )
+
 fit_brms3b <- brm(
-  can_er ~ me(fmi, se_fmi2) + (me(fmi, se_fmi2) | indicator), 
-  data = dat_trim,
+  can_er ~ logit_fmi + (logit_fmi | stock), 
+  data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(
     # very informative prior on the fixed‐effect intercept
-    prior(normal(-10, 0.25), class = "Intercept"),
+    prior(normal(0, 0.25), class = "Intercept"),
     # weakly informative prior on the fixed slope
-    prior(normal(1, 2.5), class = "b"),
+    prior(normal(1, 0.25), class = "b"),
     # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(50), class = "sd", group = "indicator",
+    prior(exponential(5), class = "sd", group = "stock",
           coef = "Intercept"),
     # fairly tight zero‐centered prior on the SD of the random slope
-    prior(exponential(2), class = "sd", group = "indicator", 
-          coef = "mefmise_fmi2"),
+    prior(exponential(5), class = "sd", group = "stock", 
+          coef = "logit_fmi"),
     # prior on the Beta‐precision
     prior(exponential(1), class = "phi")
   ),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
+  chains = 4, cores = 4, iter = 4000, warmup = 1000,
   control = list(adapt_delta = 0.95)
 )
-fit_brms3c <- brm(
-  can_er ~ fmi + (fmi | indicator), 
-  data = dat_trim,
+
+fit_brms4b <- brm(
+  can_er ~ logit_fmi + (logit_fmi | stock), 
+  data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(
     # very informative prior on the fixed‐effect intercept
-    prior(normal(-10, 0.25), class = "Intercept"),
+    prior(normal(0, 0.15), class = "Intercept"),
     # weakly informative prior on the fixed slope
-    prior(normal(1, 2.5), class = "b"),
+    prior(normal(1, 0.15), class = "b"),
     # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(50), class = "sd", group = "indicator",
+    prior(exponential(5), class = "sd", group = "stock",
           coef = "Intercept"),
     # fairly tight zero‐centered prior on the SD of the random slope
-    prior(exponential(2), class = "sd", group = "indicator", 
-          coef = "fmi"),
+    prior(exponential(5), class = "sd", group = "stock", 
+          coef = "logit_fmi"),
     # prior on the Beta‐precision
     prior(exponential(1), class = "phi")
   ),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
+  chains = 4, cores = 4, iter = 4000, warmup = 1000,
   control = list(adapt_delta = 0.95)
 )
 
 
 
 pred_dat <- expand.grid(
-  indicator = unique(dat_trim$indicator),
-  fmi = seq(0.01, 0.5, length.out = 30),
-  se_fmi = 0.1,
-  se_fmi2 = 0.2
+  stock = unique(dat$stock),
+  marine_fmi = seq(0.01, 0.5, length.out = 30),
+  se_fmi = 0.1
 )
+pred_dat$logit_fmi <- qlogis(pred_dat$marine_fmi)
 
-fit_list <- list(fit_brms1, fit_brms2, fit_brms3, 
-                 fit_brms1b, fit_brms2b, fit_brms3b, 
-                 fit_brms1c, fit_brms2c, fit_brms3c)
+fit_list <- list(
+  # fit_brms1, fit_brms2, fit_brms3, 
+  fit_brms1b, fit_brms2b, fit_brms3b, fit_brms4b
+  # fit_brms1c, fit_brms2c, fit_brms3c
+)
 
 mean_dat <- purrr::map2(
   fit_list,
-  c("rand_i_0.1", "rand_s_0.1", "rand_s_constrained_0.1",
-    "rand_i_0.2", "rand_s_0.2", "rand_s_constrained_0.2",
-    "rand_i", "rand_s", "rand_s_constrained"),
+  c(#"rand_i_0.1", "rand_s_0.1", "rand_s_constrained_0.1",
+    #"rand_i_0.2", "rand_s_0.2", "rand_s_constrained_0.2",
+    "rand_i", "rand_s", "rand_s_constrained", "rand_s_v_constrained"),
   function (x, y) {
     pred1 <- predict(x, newdata = pred_dat)
     # pred_dat$est <- pred1[,1]
     pred_dat2 <- cbind(pred_dat, pred1)
     
     global_pred <- pred_dat %>% 
-      filter(indicator == "SHU")
+      filter(stock == "SHU")
     pred_fixed <- predict(x, newdata = global_pred, re.form = NA)
     global_pred2 <- cbind(global_pred, pred_fixed) %>% 
-      mutate(indicator = "global")
+      mutate(stock = "global")
     
     rbind(pred_dat2, global_pred2) %>% 
       mutate(model = y)
@@ -696,20 +698,33 @@ mean_dat <- purrr::map2(
   mutate(
     model = factor(
       model, 
-      levels = c("rand_i_0.1", "rand_s_0.1", "rand_s_constrained_0.1",
-                 "rand_i_0.2", "rand_s_0.2", "rand_s_constrained_0.2",
-                 "rand_i", "rand_s", "rand_s_constrained"
+      levels = c(#"rand_i_0.1", "rand_s_0.1", "rand_s_constrained_0.1",
+                 #"rand_i_0.2", "rand_s_0.2", "rand_s_constrained_0.2",
+                 "rand_i", "rand_s", "rand_s_constrained", "rand_s_v_constrained"
     ))
   )
 
 pred_cyer_ribbon <- fmi_cyer_cor +
-  geom_line(data = mean_dat %>% filter(!indicator == "global"),
-            aes(x = fmi, y = Estimate, group = indicator),
+  geom_line(data = mean_dat %>% filter(!stock == "global"),
+            aes(x = marine_fmi, y = Estimate, group = stock),
             linetype = 2) +
-  geom_line(data = mean_dat %>% filter(indicator == "global"),
-            aes(x = fmi, y = Estimate)) +
-  geom_ribbon(data = mean_dat %>% filter(indicator == "global"),
-              aes(x = fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
+  geom_line(data = mean_dat %>% filter(stock == "global"),
+            aes(x = marine_fmi, y = Estimate)) +
+  geom_ribbon(data = mean_dat %>% filter(stock == "global"),
+              aes(x = marine_fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
+  geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
+  facet_wrap(~model) +
+  labs(y = "Predicted CWT-based CYER", x = "FMI-based ER") +
+  theme(legend.position = "top")
+
+pred_cyer_ribbon_logit <- fmi_cyer_cor_logit +
+  geom_line(data = mean_dat %>% filter(!stock == "global"),
+            aes(x = logit_fmi, y = qlogis(Estimate), group = stock),
+            linetype = 2) +
+  geom_line(data = mean_dat %>% filter(stock == "global"),
+            aes(x = logit_fmi, y = qlogis(Estimate))) +
+  # geom_ribbon(data = mean_dat %>% filter(stock == "global"),
+  #             aes(x = logit_fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   facet_wrap(~model) +
   labs(y = "Predicted CWT-based CYER", x = "FMI-based ER") +
@@ -718,9 +733,10 @@ pred_cyer_ribbon <- fmi_cyer_cor +
 
 pred_list <- purrr::map2(
   fit_list,
-  c("rand_i", "rand_s", "rand_s_constrained"),
+  c("rand_i", "rand_s", "rand_s_constrained", "rand_s_v_constrained"),
   function (x, y) {
     new_data <- data.frame(fmi = c(0.05, 0.3))  # Example new fmi values
+    new_data$logit_fmi <- qlogis(new_data$fmi)
     
     pp <- posterior_predict(
       x, newdata = new_data, allow_new_levels = TRUE
@@ -785,7 +801,7 @@ calc_pit <- function(y, posterior_pred) {
 # check pit resid
 purrr::map2(
   fit_list,
-  c("rand_i", "rand_s", "constrained_rand_is"),
+  c("rand_i", "rand_s", "rand_s_constrained", "rand_s_v_constrained"),
   function (x, y) {
     pp <- posterior_predict(x, nsim = 1000) %>% t()
     pit_residuals <- calc_pit(y = dat_trim$can_er, posterior_pred = pp)
@@ -795,9 +811,14 @@ purrr::map2(
   }
 )
 
-png(here::here("figs", "pred_cyer_ribbon.png"), height = 4.5, 
+png(here::here("figs", "pred_cyer_ribbon.png"), height = 6, 
     width = 7.5, units = "in", res = 250)
 pred_cyer_ribbon
+dev.off()
+
+png(here::here("figs", "pred_cyer_ribbon_logit.png"), height = 6, 
+    width = 7.5, units = "in", res = 250)
+pred_cyer_ribbon_logit
 dev.off()
 
 png(here::here("figs", "cyer-ts.png"), height = 4.5, 
