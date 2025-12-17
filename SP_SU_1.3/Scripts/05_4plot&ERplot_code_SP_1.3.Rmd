@@ -1,0 +1,408 @@
+---
+title: "4plot & ER plot code"
+author: "Colin Bailey"
+date: "2025-06-26"
+output: html_document
+---
+
+This code chunk loads the required packages and the data.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(cowplot)
+#library(samSim)
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(RColorBrewer)
+library(tidyr)
+library(patchwork)
+
+dat <- read.csv("SP_1.2\\Data_in\\srDat.csv")
+esc_dat <- read.csv("SP_1.2\\Data_in\\sp1.2_smu_no_escape.csv")
+nic_dat <- read.csv("SP_1.2\\Data_in\\nic_dat.csv")
+nic_ER <- read.csv("SP_1.2\\Data_in\\nic_ER.csv")
+epad_dat <- read.csv("SP_1.2\\Data_in\\Fraser_Chinook_Releases_1975-2024.csv")
+age_dat <- read.csv("SP_1.2\\Data_in\\prefishery_abundance_age_BY.csv")
+pni_dat <-read.csv("SP_1.2\\Data_in\\nic_PNI.csv")
+
+```
+
+Code chunk to create the Spring 1.2 recruitment plot
+```{r recruitment plot}
+
+n_dat <- dat %>% mutate(t_rec = rec2 + rec3 + rec4 + rec5 + rec6,
+               p2 = rec2 / t_rec,
+               p3 = rec3 / t_rec,
+               p4 = rec4 / t_rec,
+               p5 = rec5 / t_rec,
+               p6 = rec6 / t_rec,
+               m_rec = t_rec / ets) %>% filter(yr %in% c(1995:2020))
+
+###Escapement timeseries
+`%!in%` <- Negate(`%in%`)
+edat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
+
+bess <- edat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(TotalInfilled = sum(TotalInfilled, na.rm = F))
+
+dat_simp <- edat %>% filter(Pop_Name %!in% c("BESSETTE CREEK", "HARRIS CREEK", "CREIGHTON CREEK", "DUTEAU CREEK"))
+
+dat_bess <- edat %>% filter(Pop_Name == "BESSETTE CREEK") %>% dplyr::select(-TotalInfilled) %>%
+  bind_cols(., TotalInfilled = bess$TotalInfilled)
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+recs <- escape %>% mutate(p_spawn = 1-ER,
+                          recs = no_spawners / p_spawn) %>% group_by(ret_year) %>% 
+  summarize(smu_recs = sum(recs))
+
+
+recruit <- recs %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_recs/1000))+
+  labs(x = "Return year", y = "Recruits (1000s)")+
+  scale_y_continuous(breaks = c(0,5,10,15,20, 25, 30))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  theme_classic()
+
+
+```
+
+Code chunk to create the Spring 1.2 catch plot
+```{r catch plot}
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+cat <- escape %>% mutate(p_spawn = 1-ER,
+                          recs = no_spawners / p_spawn,
+                          catch = ER * recs) %>% group_by(ret_year) %>% 
+  summarize(smu_catch = sum(catch))
+
+catch <- cat %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_catch/1000))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  labs(x = "Return year", y = "Catch (1000s)")+
+  theme_classic()
+
+```
+
+Code chunk to create the Spring 1.2 spawners plot
+```{r spawners plot}
+
+e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
+                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
+                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
+                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
+  filter(Pop_Name != "NICOLA RIVER") %>% 
+  dplyr:: select(stk, ret_year = Year, no_spawners = TotalInfilled) %>% 
+  filter(ret_year > 1994)
+
+e_dat[116, ] <- c(5, 2020, 1.026313)
+
+nicced <- nic_dat %>% dplyr::select(ret_year = brood_year, no_spawners) %>% mutate(stk = 1) %>% 
+  dplyr::select(stk, ret_year, no_spawners)
+nicced[30:32, 1] <- c(1, 1, 1)
+nicced[30:32, 2] <- c(2021:2023)
+nicced[30:32, 3] <- c(965, 3447, 1688)
+
+escape <- rbind(nicced, e_dat) %>% filter(ret_year > 1994) %>% arrange(ret_year) %>% arrange(stk)
+escape$ER <- rep((nic_ER %>% filter(ret_year %in% c(1995:2023)))[,3], 5)
+
+esc <- escape %>% group_by(ret_year) %>% summarize(smu_spawn = sum(no_spawners))
+
+spawn <- esc %>% ggplot(aes(x = ret_year))+
+  geom_line(aes(x = ret_year, y = smu_spawn/1000))+
+  labs(x = "Return year", y = "Spawner abundance (1000s)")+
+  scale_y_continuous(breaks = c(0,5,10, 15, 20, 25))+
+  scale_x_continuous(limits = c(1989, 2024))+
+  theme_classic()
+
+cu_esc <- escape %>% mutate(cu = ifelse(stk %in% c(1:4), "Lth", "Bst"),
+                            p_spawn = 1-ER,
+                            recruits = no_spawners / p_spawn) %>% 
+  group_by(cu, ret_year) %>%
+  summarize(sum_cu = sum(no_spawners),
+            sum_cu_rec = sum(recruits))
+
+write.csv(cu_esc, "cu_esc.csv")
+
+```
+
+Code chunk to create the Spring 1.2 exploitation rate plot
+```{r ER plot}
+
+ER <- nic_ER %>% ggplot(aes(x = ret_year))+
+  geom_rect(aes(xmin = 1989, xmax = 2024, ymin = 0.04, ymax = 0.69), fill = "lightgrey", alpha = 0.01)+
+  geom_line(aes(x = ret_year, y = tot_mort_um), colour = "black")+
+  geom_hline(aes(yintercept = 0.34), colour = "red")+
+  scale_x_continuous(limits = c(1989, 2024))+
+  labs(x = "Return year", y = "Exploitation rate")+
+  theme_classic()
+
+
+```
+
+Code chunk for combining all the plots into a single 4-panel figure
+```{r 4-plot}
+
+four_plot <- plot_grid(catch, spawn, ER, recruit,
+          labels = c("(A)", "(B)", "(C)", "(D)"),
+          label_size = 12,
+          align = "v",
+          label_x = 0.87)
+
+ggsave(four_plot, height = 5, width = , units = "in", filename = "4plot.png")
+
+```
+
+Code chunk to create the smolt-to-age_3 survival index plot
+```{r surv plot}
+
+nic_dat %>% ggplot(aes(x = brood_year, y = smolt_age3_survival*100))+
+  geom_line()+
+  scale_x_continuous(limits = c(1993, 2020),
+                     breaks = c(1995, 2000, 2005, 2010, 2015, 2020))+
+  scale_y_continuous()+
+  labs(x = "Brood year", y = "Smolt to age 3 recruit survival (%)")+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "surv.png")
+
+```
+
+Code chunk to create the Nicola age proportions plot
+```{r surv plot}
+
+## Convert data-frame to long-form ##### 
+
+age_data <- age_data %>%
+  mutate(across(ends_with("percent"), ~ as.numeric(sub("%", "", .)) / 100))
+
+
+# Pivot counts
+counts_long <- age_data %>%
+  pivot_longer(
+    cols = starts_with("age_") & !ends_with("percent"),
+    names_to = "age",
+    names_prefix = "age_",
+    values_to = "count"
+  )
+
+# Pivot percents
+percents_long <- age_data %>%
+  pivot_longer(
+    cols = ends_with("percent"),
+    names_to = "age",
+    names_pattern = "age_(\\d+)_percent",
+    values_to = "percent"
+  )
+
+# Join the two long-form datasets
+age_data_long <- left_join(counts_long, percents_long, by = c("BY", "age"))
+
+# Convert age to numeric
+age_data_long <- age_data_long %>%
+  mutate(age = as.numeric(age))
+
+# Preview result
+print(age_data_long)
+### Change age to factor #### 
+
+age_data_long <- age_data_long %>%
+  mutate(age = as.factor(age)) 
+
+
+#### Create Stacked Bar Plot #####
+
+pal <- gray.colors(3, start=0.1, end=0.9) #gray scale option
+# pal <- c("darkslategrey","azure4","azure3","azure1")
+#pal <- c("#88CCEE", "#CC6677", "#DDCC77")
+
+
+windows()
+
+  
+  age_data_long %>%
+    ggplot(aes(x= BY, y = percent, fill = age)) +
+    geom_bar(stat = "identity", position = "stack") +
+    labs(
+      x = "Brood Year",
+      y = "Proportion (Prefishery Abundance)",
+      fill = "Age"
+    ) +
+    scale_y_continuous(
+      breaks = seq(0, 1, by = 0.1),
+      expand = expansion(mult = c(0, 0.1))
+    ) +
+    scale_x_continuous(breaks = seq(1993, 2019, by = 1)) +
+    scale_fill_manual(values = pal) +
+    theme_classic() +
+    theme(
+      legend.position = "top",
+      axis.text.x = element_text(size = 10, angle = 45, hjust = 1, face = "bold"),
+      axis.text.y = element_text(size = 10, hjust = 1, face = "bold", vjust = 1)
+    )
+  
+  ggsave("Nicola_age_structure_prefishery_abundanceBY.png",plot = last_plot(), width = 7, height = 5, units = "in", dpi = 300)
+
+```
+
+Code chunk to create the  hatchery releases plot
+```{r surv plot}
+
+# Filter for STOCK_CU_INDEX "CK-17"
+epad_data <- epad_data %>%
+  filter(STOCK_CU_INDEX == "CK-17")
+
+# Replace NA numeric values with zero (if any remain)
+epad_data <- epad_data %>%
+  mutate(across(where(is.numeric), ~replace_na(.x, 0)))
+
+# Define full range of years
+full_years <- 1980:2024
+
+### Filter Fry Data ##
+fry_data <- epad_data %>%
+  filter(RELEASE_STAGE_NAME %in% c("Fed Fry", "Nat Fry")) %>%
+  group_by(RELEASE_YEAR, STOCK_CU_INDEX, RELEASE_SITE_NAME) %>%
+  summarise(TotalReleased = sum(TotalRelease, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Stage = "Fry") %>%
+  mutate(CombinedSite = case_when(
+    RELEASE_SITE_NAME %in% c("Bonaparte R", "Bonaparte R Low", "Bonaparte R Up") ~ "Bonaparte R",
+    RELEASE_SITE_NAME %in% c("Nicola R", "Nicola R Up") ~ "Nicola R",
+    RELEASE_SITE_NAME %in% c("Spius Cr", "Spahomin Cr", "Maka Cr") ~ "Spius Cr",
+    TRUE ~ RELEASE_SITE_NAME
+  )) %>%
+  # Fill missing year-site combinations with 0
+  complete(RELEASE_YEAR = full_years, CombinedSite, Stage, fill = list(TotalReleased = 0))
+
+
+### Split Smolt Data into Smolt 0+ and Smolt 1+ ###
+smolt_data <- epad_data %>%
+  filter(RELEASE_STAGE_NAME %in% c("Smolt 0+", "Smolt 1+")) %>%
+  group_by(RELEASE_YEAR, STOCK_CU_INDEX, RELEASE_SITE_NAME, RELEASE_STAGE_NAME) %>%
+  summarise(TotalReleased = sum(TotalRelease, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Stage = RELEASE_STAGE_NAME) %>%  # Now Stage = "Smolt 0+" or "Smolt 1+"
+  mutate(CombinedSite = case_when(
+    RELEASE_SITE_NAME %in% c("Bonaparte R", "Bonaparte R Low", "Bonaparte R Up") ~ "Bonaparte",
+    RELEASE_SITE_NAME %in% c("Nicola R", "Nicola R Up") ~ "Nicola",
+    RELEASE_SITE_NAME %in% c("Spius Cr", "Spahomin Cr", "Maka Cr") ~ "Spius Cr",
+    TRUE ~ RELEASE_SITE_NAME
+  )) %>%
+  # Fill missing year-site combinations with 0
+  complete(RELEASE_YEAR = full_years, CombinedSite, Stage, fill = list(TotalReleased = 0))
+
+# Split by stage
+fry_data_plot <- fry_data %>% filter(Stage == "Fry")
+smolt0_data_plot <- smolt_data %>% filter(Stage == "Smolt 0+")
+smolt1_data_plot <- smolt_data %>% filter(Stage == "Smolt 1+")
+
+# Plot Fry
+plot_fry <- ggplot(fry_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                      group = interaction(CombinedSite, Stage),
+                                      color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Fry", x = NULL, color = NULL) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "top",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(10, 10, 0, 10)
+  )
+
+# Plot Smolt 0+
+plot_smolt0 <- ggplot(smolt0_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                            group = CombinedSite, color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Sub-yearling Smolts", x = NULL) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(0, 10, 0, 10)
+  )
+
+# Plot Smolt 1+
+plot_smolt1 <- ggplot(smolt1_data_plot, aes(x = RELEASE_YEAR, y = TotalReleased,
+                                            group = CombinedSite, color = CombinedSite)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_viridis_d(option = "D") +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(1980, 2024, 4)) +
+  labs(y = "Yearling Smolts", x = "Release Year") +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 10),
+    plot.margin = margin(0, 10, 10, 10)
+  )
+
+combined_plot <- plot_fry / plot_smolt0 / plot_smolt1 + plot_layout(heights = c(1, 1, 1))
+windows()
+print(combined_plot)
+
+ggsave("Spring 1.2 Hatchery Releases (3 panels).png", plot = combined_plot,
+       width = 7, height = 7.5, units = "in", dpi = 300)
+```
+
+Code chunk to create the PNI plot
+```{r surv plot}
+
+pni_dat %>% ggplot(aes(x = recovery_year, y = PNI))+
+  geom_line()+
+  scale_x_continuous(limits = c(1992, 2024),
+                     breaks = seq(1992,2024,4))+
+  scale_y_continuous(limits = c(0,1),
+                     breaks = seq(0,1,0.1))+
+  labs(x = "Recovery Year", y = "PNI Value")+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "pni.png")
+
+```
