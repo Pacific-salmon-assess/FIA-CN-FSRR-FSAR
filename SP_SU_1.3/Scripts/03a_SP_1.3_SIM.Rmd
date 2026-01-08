@@ -1,5 +1,5 @@
 ---
-title: "SP/SU_1.3_SIM"
+title: "SP_1.3_SIM"
 author: "Colin Bailey"
 date: "2025-12-11"
 output: html_document
@@ -37,60 +37,52 @@ pos_dat <- summary(readRDS("R\\sp_su_1.3_fit.RDS"))
 head(pos_dat)
 
 #age data
-age_dat <- read.csv("SP_1.2\\Data_in\\rec_age_comp.csv")
+age_dat <- read.csv("SP_SU_1.3\\Data_in\\age_dat_SP1.3.csv")
 head(age_dat)
 
 ```
 
 
 This code chunk prepares data for use in 'samSim' (the forward simulation tool). The key data inputs in this chunk include:
-1) a correlation matrix of the sub-populations being simulated
-2) watershed area-based estimates of SREP for sub-populations without S-R models (all except Nicola) that are converted into beta values (*see "02_Benchmarks.Rmd" for details on conversion of SREP to beta*)
+1) a correlation matrix of the CUs being simulated
+2) watershed area-based estimates of SREP for CUs that are converted into beta values (*see "02_Benchmarks.Rmd" for details on conversion of SREP to beta*)
 3) a posterior for each sub-population with Ricker model parameters "alpha", "beta", and "sigma" (**detailed explanation of the calculation of these parameters below this list**)
 4) mean proportions and variance in age at return
-5) an estimated S-R timeseries (based on Nicola Indicator Stock information) to prime the simulation
 
 **Description of the posteriors for the sub-populations**
-The 'samSim' package can produce forward simulations of salmon abundance using fixed Ricker parameter values or posteriors from Ricker stock-recruit models. Here, we wanted to simulate abundances in the sub-populations of the Fraser Spring 1.2 Chinook SMU across a realistic fixed range of alpha values (productivity) while still incorporating uncertainty from models' posteriors. The parameters provided in the population-specific posteriors included:
-1) alpha - range from 0.2 to 1.305 in even steps representing a wide range of alpha values observed in the Nicola S-R model posterior. The same fixed values of alpha were assumed to be representative of all Fraser Spring 1.2 populations
-2) beta - posterior generated from the Nicola S-R analysis for Nicola, and from the Parken Habitat Model for all other populations
-3) sigma - posterior generated from the Nicola S-R analysis and assumed to be representative of all populations
+The 'samSim' package can produce forward simulations of salmon abundance using fixed Ricker parameter values or posteriors from Ricker stock-recruit models. Here, we wanted to simulate abundances in the CUs of the Fraser Spring 1.3 Chinook SMU across a realistic fixed range of alpha values (productivity) while still incorporating uncertainty from models' posteriors. The parameters provided in the population-specific posteriors included:
+1) alpha - range from 0.36 to 2.13 in even steps representing a wide range of alpha values observed in the estimated log(alpha) posterior (*see "01_SR_parameters.Rmd" for details*). The same alpha posterior was assumed to be representative of all Fraser Spring 1.3 populations.
+2) beta - posterior generated from the Parken Habitat Model and the log(alpha) posterior for all CUs.
+3) sigma - posterior generated from the Nicola S-R analysis and assumed to be representative of all CUs.
 
-The range of alpha values tested (n = 14) roughly matches the 80% CI of alpha values in the posterior from the Nicola S-R model. Because marine survival/productivity is a component of alpha (productivity), we can provide a rough translation between productivity and survival values. When the range of alpha values we tested are translated to equivalent smolt-to-age_3 survival index values, this equated to a range from 0.5% survival to 6.6%, which matches the lower 80% CI for logit-transformed and z-scored smolt-to-age_3 survival (0.5%) and roughly matches the upper 95% CI (6.3%). Thus, the range of alpha values used in the simulation cover a realistic range of productivity/survival values. 
+The range of alpha values tested (n = 10) roughly matches the 95% CI of alpha values in the posterior.
 
-Beta values were estimated from posterior predictions of SREP for each population except Nicola (for which beta is estimated in the S-R model) as described in "02_Benchmarks.Rmd". Because alpha and beta are correlated statistically, and pairings of low values of one parameter with high values of the other parameter can lead to simulation malfunction (samSim errors out and fails to complete the simulation), we paired lower values of alpha with lower quantile slices of beta, and vice versa. Thus, for each population, the vector of 30000 possible values of beta were sliced into 14 quantiles, and the 1st quantile of beta was matched with the lowest value of alpha tested, etc. 
+Beta values were estimated from posterior predictions of SREP for each CU as described in "02_Benchmarks.Rmd". Because alpha and beta are correlated statistically, and pairings of low values of one parameter with high values of the other parameter can lead to simulation malfunction (samSim errors out and fails to complete the simulation), we paired lower values of alpha with lower quantile slices of beta, and vice versa. Thus, for each CU, the vector of 30000 possible values of beta were sliced into 10 quantiles, and the 1st quantile of beta was matched with the lowest value of alpha tested, etc. 
 
 Sigma values were not matched in any particular fashion to values of alpha or beta as they are not correlated with those parameters. Thus, sigma was drawn at random from the Nicola S-R model posterior.
 
-For each population and level of alpha tested, a posterior of 1000 rows with alpha, beta and sigma were fed into the simulation.
-
+For each CU and level of alpha tested, a posterior of 1000 rows with alpha, beta and sigma were fed into the simulation.
 
 ```{r sim data prep}
 
-###Escapement correlation### - filter out pops with high hatchery influence & no NO estimates, and filter out years with NAs
+###Escapement correlation### - filter for Spring 1.3 pops
 `%!in%` <- Negate(`%in%`)
-dat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
 
-bess <- dat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(TotalInfilled = sum(TotalInfilled, na.rm = F))
+dat <- esc_dat %>% filter(CU_ID %in% c("CK-04", "CK-08", "CK-10", "CK-12", "CK-18")) %>% 
+  dplyr::select(Pop_Name = CU_ID, Year, TotalInfilled = SpnForAbd_Wild) %>% 
+  filter(Year > 2008)
 
-dat_simp <- dat %>% filter(Pop_Name %!in% c("BESSETTE CREEK", "HARRIS CREEK", "CREIGHTON CREEK", "DUTEAU CREEK"))
-
-dat_bess <- dat %>% filter(Pop_Name == "BESSETTE CREEK") %>% dplyr::select(-TotalInfilled) %>%
-  bind_cols(., TotalInfilled = bess$TotalInfilled)
-
-dat <- bind_rows(dat_simp, dat_bess)
+dat[dat$Pop_Name == "CK-04" & dat$Year == 2024, 3] <- 200 #need to update this with the official escapement estimate for Birkenhead 2024
 
 source("R\\pop_cor.R")
 
 pcor <- pop_cor(dat) #population correlation matrix
 
 ###Estimate srep from watershed areas for populations without beta estimates###
-wa = c(4521, 3498.64, 889.64, 519.39, 276.21)
-pop = c("Nicola River", "Bonaparte River", "Deadman River", "Louis Creek", "Bessette Creek")
+nu_wa_dat <- read.csv("data\\CN1.3_watershed_areas.csv")
+nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU) %>% filter(smu == "SP_1.3")
 
-nu_wa = data.frame(pop, wa)
-
-#baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Spring 1.2 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
+#baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Spring 1.3 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
 old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
 
 source("R\\srep_wa_analysis_predict.R")
@@ -100,62 +92,46 @@ names(nu_srep) <- c(unique(nu_wa$pop))
 nu_srep <- nu_srep[sample(nrow(nu_srep), 30000),] #srep posterior, 30000 samples each per population
 
 ###Estimate beta posterior from nu_srep posterior###
-post <- readRDS("data\\post.rds") #posterior from the Nicola S-R model
+post <- readRDS("R//sp_su_1.3_fit.RDS")
 
-srep_post <- nu_srep %>% dplyr::select(-`Nicola River`) %>% pivot_longer(names_to = "pop", cols = c(1:4)) %>% arrange(pop) #posterior of srep values for all populations except Nicola
+srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:5)) %>% arrange(pop) #posterior of srep values for all populations
 
-#creating alpha-sigma-gamma-alpha_prime posterior for Bonaparte, Deadman, Louis and Bessette
-bt <- post[sample(nrow(post), 30000),]
-dm <- post[sample(nrow(post), 30000),]
-ls <- post[sample(nrow(post), 30000),]
-bs <- post[sample(nrow(post), 30000),]
+#creating alpha-sigma-alpha_prime posterior for each CU
+`CK-04` <- data.frame(as.vector(extract(post)[12])$alpha_sp, 
+                      as.vector(extract(post)[4])$sigma,
+                      as.vector(extract(post)[16])$alpha_prime_sp) %>% 
+  mutate(CU = "CK-04")
+names(`CK-04`) <- c("alpha_sp", "sigma", "alpha_prime_sp", "CU")
+`CK-08` <- `CK-04`[sample(nrow(`CK-04`), 30000),] %>% mutate(CU = "CK-08")
+`CK-10` <- `CK-04`[sample(nrow(`CK-04`), 30000),] %>% mutate(CU = "CK-10")
+`CK-12` <- `CK-04`[sample(nrow(`CK-04`), 30000),] %>% mutate(CU = "CK-12")
+`CK-18` <- `CK-04`[sample(nrow(`CK-04`), 30000),] %>% mutate(CU = "CK-18")
 
-h1 <- rbind(bt,dm)
-h2 <- rbind(ls,bs)
-w <- rbind(h1,h2) %>% dplyr::select(-beta) #binding the posteriors into a single dataframe
+w <- rbind(`CK-04`, `CK-08`) %>% rbind(.,`CK-10`) %>% rbind(.,`CK-12`) %>% rbind(.,`CK-18`)
 
-srep_post$alpha_prime <- w$alpha_prime
-srep_post$alpha <- ifelse(w$alpha > 0, w$alpha, 0) 
+srep_post$alpha_prime_sp <- w$alpha_prime_sp
+srep_post$alpha <- ifelse(w$alpha_sp > 0, w$alpha_sp, 0) 
 srep_post$sigma <- w$sigma
-srep_post$gamma <- w$gamma
 
-nu_beta <- srep_post %>% mutate(srep = value, #produces equivalent-to-Nicola-posteriors for the non-Nicola populations
-                     beta = alpha_prime/srep) %>%
-  dplyr::select(alpha, beta, sigma, gamma, pop)
+nu_beta <- srep_post %>% mutate(srep = value, #produces equivalent-to-Nicola-posteriors for all the CUs
+                     beta = alpha_prime_sp/srep) %>%
+  dplyr::select(alpha, beta, sigma, pop)
 
-nu_post <- post %>% #produces Nicola River posterior in same format as nu_beta
-  mutate(pop = "Nicola River",
-         alpha = ifelse(alpha > 0, alpha, 0)) %>% 
-  dplyr::select(alpha, beta, sigma, gamma, pop)
-
-sim_post <- rbind(nu_beta, nu_post) %>% #creates one large posterior with all populations represented
-  mutate(stk = ifelse(pop == "Nicola River", 1,
-                      ifelse(pop == "Bonaparte River", 2,
-                             ifelse(pop == "Deadman River", 3,
-                                    ifelse(pop == "Louis Creek", 4, 5))))) %>% 
+sim_post <- nu_beta %>% #creates one large posterior with all CUs represented
+  mutate(stk = ifelse(pop == "CK-04", 1,
+                      ifelse(pop == "CK-08", 2,
+                             ifelse(pop == "CK-10", 3,
+                                    ifelse(pop == "CK-12", 4, 5))))) %>% 
   dplyr::select(stk, alpha, beta, sigma)#full posterior to feed to the simulation
 
 sim_post=sim_post[order(sim_post$stk),] #orders the posterior by stk #
 
-#manipulate the posterior into 14 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots (see "04_samsim_processing.Rmd")
-#note that alpha values are based on the 2 SD range in SAS 
-alpha_nu <- seq(from = 0.2, to = 1.35, by = 0.085) #alpha values to test
-stk_beta <- list() #empty list to populate with beta values sampled from 14 quantiles
+#manipulate the posterior into 10 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots (see "04_samsim_processing.Rmd")
+#note that alpha values are based on the 2 SE range in alpha_sp
+alpha_nu <- seq(from = 0.36, to = 2.13, length.out = 10) #alpha values to test
+stk_beta <- list() #empty list to populate with beta values sampled from 10 quantiles
 beta_nu <- list() #empty list of lists to combine the outputs of stk_beta
-b_ks <- c(7.142857,        #quantile break points (100 / 14 = 7.142857)
-             (7.142857*2),
-             (7.142857*3),
-             (7.142857*4),
-             (7.142857*5),
-             (7.142857*6),
-             (7.142857*7),
-             (7.142857*8),
-             (7.142857*9),
-             (7.142857*10),
-             (7.142857*11),
-             (7.142857*12),
-             (7.142857*13)) * 0.01
-
+b_ks <- seq(0.1, 1, 0.1)
 ###Creating a list of dataframes with beta and sigma pairs arranged by beta quantile slice##
 
 for(s in 1:5){
@@ -163,7 +139,7 @@ for(s in 1:5){
 }
 beta_nu[[1]] <- bind_rows(stk_beta, .id = "column_label") #bind together for loop outputs
 
-for(i in 2:(length(alpha_nu) - 1)){ #sample beta and sigma pairs from the posterior for each stock and the middle 11 beta quantiles
+for(i in 2:length(alpha_nu)){ #sample beta and sigma pairs from the posterior for each stock and the middle 11 beta quantiles
   for(s in 1:5){
     stk_beta[[s]] = sample_n(sim_post %>% filter(stk == s) %>% filter(beta >= quantile(beta, probs = c(b_ks[i-1])) &
                                                                       beta < quantile(beta, probs = c(b_ks[i]))), 1000)[,3:4]
@@ -175,12 +151,6 @@ for(i in 2:(length(alpha_nu) - 1)){ #sample beta and sigma pairs from the poster
   
   beta_nu[[i]] = bind_rows(stk_beta, .id = "column_label")
 }
-
-for(s in 1:5){ #sample beta and sigma pairs from the posterior for each stock and the last beta quantile
-  stk_beta[[s]] = sample_n(sim_post %>% filter(stk == s) %>% filter(beta >= quantile(beta, probs = c(b_ks[13]))), 1000)[,3:4]
-}
-beta_nu[[14]] <- bind_rows(stk_beta, .id = "column_label") #bind together for loop outputs
-
 
 ###Creating a list of dataframes with rows of alpha, beta, and sigma arranged by alpha value and beta quantile slice##
 
@@ -202,10 +172,11 @@ for(i in 1:length(sim_post_vars)){ #replacing dummy values of beta and sigma wit
   sim_post_vars[[i]][,3:4] = beta_nu[[i]][2:3]
 }
 
-###Tau for age variance and mean proportions at age (3,4,5)###
-ppnMat <- age_dat %>% mutate(p3 = a3/(a3 + a4 + a5),
-                   p4 = a4/(a3 + a4 + a5),
-                   p5 = a5/(a3 + a4 + a5)) %>% dplyr::select(p3, p4, p5)
+###Tau for age variance and mean proportions at age (3,4,5,6)### - note, needed to add a very small number to zeros for the math to work properly (otherwise provides significant overestimate of proportion at age 6)
+ppnMat <- age_dat %>% mutate(p3 = ifelse(a3/(a3 + a4 + a5 + a6) > 0, a3/(a3 + a4 + a5 + a6), 0.001),
+                   p4 = ifelse(a4/(a3 + a4 + a5 + a6) > 0, a4/(a3 + a4 + a5 + a6), 0.001),
+                   p5 = ifelse(a5/(a3 + a4 + a5 + a6) > 0, a5/(a3 + a4 + a5 + a6), 0.001),
+                   p6 = ifelse(a6/(a3 + a4 + a5 + a6) > 0, a6/(a3 + a4 + a5 + a6), 0.001)) %>% dplyr::select(p3, p4, p5, p6)
 
 source("R\\age_tau.R")
 
@@ -215,100 +186,22 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 ```
 
 
-Hatchery spawners are incorporated into the simulation analysis for the Nicola River sub-population. Hatchery spawners are included with total spawners contributing to the next generation of recruits, but are not included in the recruits for the simulation. This means that we are not considering the differential productivity between hatchery- and natural-origin spawners in these analyses. In addition, hatchery-origin spawners are not included in the CU spawner totals used to evaluate whether a CU is above its lower benchmark.
-```{r, hatchery scalar estimation}
-
-nic_dat$hatchery_spawners=nic_dat$total_spawners-nic_dat$no_spawners #hatchery spawner abundance
-nic_dat$p_hatch_no=nic_dat$hatchery_spawners/nic_dat$no_spawners #ratio of hatchery:natural origin spawners
-
-#estimate gamma distribution parameters
-fit<- dglm::dglm(nic_dat$p_hatch_no~1,family=Gamma(link='log'))
-mu<- exp(fit$coefficients[1])
-shape<- exp(fit$dispersion.fit$coefficients[1])
-scale<- mu/shape
-max_hsp<- max(nic_dat$hatchery_spawners)
-par(mfrow=c(1,2))
-hist(nic_dat$p_hatch_no,main='observed ratio of hatchery:natural origin spawners')
-hist(rgamma(1000,shape=shape,scale=scale),main='simulated gamma distribution of ratios')
-
-```
-
-
-This code chunk creates an approximation of the stock-recruit information for each population based on the stock-recruit data available from the Nicola Indicator Stock and the spawner escapements from the other populations without stock-recruit information. We approximated the stock-recruit information for the remaining populations to prime the simulation so that it starts from the most recent complete brood year of recruit and escapement information.
-```{r build srDat}
-
-n_dat <- dat_sr %>% mutate(t_rec = rec2 + rec3 + rec4 + rec5 + rec6,
-               p2 = rec2 / t_rec,
-               p3 = rec3 / t_rec,
-               p4 = rec4 / t_rec,
-               p5 = rec5 / t_rec,
-               p6 = rec6 / t_rec,
-               m_rec = t_rec / ets) %>% filter(yr %in% c(1995:2020))
-
-###Escapement timeseries
-`%!in%` <- Negate(`%in%`)
-edat <- esc_dat %>% filter(Pop_Name %!in% c("NICOLA RIVER-UPPER", "SPIUS CREEK", "COLDWATER RIVER"))
-
-bess <- edat %>% filter(CU_ID == "CK-16") %>% group_by(Year) %>% summarize(TotalInfilled = sum(TotalInfilled, na.rm = F))
-
-dat_simp <- edat %>% filter(Pop_Name %!in% c("BESSETTE CREEK", "HARRIS CREEK", "CREIGHTON CREEK", "DUTEAU CREEK"))
-
-dat_bess <- edat %>% filter(Pop_Name == "BESSETTE CREEK") %>% dplyr::select(-TotalInfilled) %>%
-  bind_cols(., TotalInfilled = bess$TotalInfilled)
-
-e_dat <- bind_rows(dat_simp, dat_bess) %>% mutate(stk = ifelse(Pop_Name == "NICOLA RIVER", 1,
-                                                         ifelse(Pop_Name == "BONAPARTE RIVER", 2,
-                                                                ifelse(Pop_Name == "DEADMAN RIVER", 3, 
-                                                                       ifelse(Pop_Name == "LOUIS CREEK", 4, 5))))) %>% 
-  filter(Pop_Name != "NICOLA RIVER") %>% 
-  dplyr:: select(stk, yr = Year, ets = TotalInfilled, totalSpawn = TotalInfilled) %>% 
-  filter(yr %in% c(1995:2020))
-
-e_dat[104, ] <- c(5, 2020, 1.026313, 1.026313)
-
-dat_nu <- list(stk2 = e_dat %>% filter(stk==2),
-     stk3 = e_dat %>% filter(stk==3),
-     stk4 = e_dat %>% filter(stk==4),
-     stk5 = e_dat %>% filter(stk==5))
-
-for(j in 1:4){
-  for(i in 1:nrow(n_dat)){
-    dat_nu[[j]]$t_rec[i] = dat_nu[[j]]$ets[i] * n_dat$m_rec[i]
-    dat_nu[[j]]$rec2[i] = dat_nu[[j]]$t_rec[i] * n_dat$p2[i]
-    dat_nu[[j]]$rec3[i] = dat_nu[[j]]$t_rec[i] * n_dat$p3[i]
-    dat_nu[[j]]$rec4[i] = dat_nu[[j]]$t_rec[i] * n_dat$p4[i]
-    dat_nu[[j]]$rec5[i] = dat_nu[[j]]$t_rec[i] * n_dat$p5[i]
-    dat_nu[[j]]$rec6[i] = dat_nu[[j]]$t_rec[i] * n_dat$p6[i]
-  }
-}
-
-nic <- n_dat %>%  dplyr::select(stk, yr, ets, totalSpawn, rec2, rec3, rec4, rec5, rec6)
-rest <- bind_rows(dat_nu, .id = "column_label") %>% dplyr::select(-column_label, -t_rec)
-
-srDat_infilled <- rbind(nic, rest)
-
-write.csv(srDat_infilled, "data\\samsim pars\\srDat_infilled.csv")
-```
-
-
-Note that HO recruits are added to the total recruit number, and are part of the spawner escapement contributing to the next generation, but excluded from the spawner escapement abundance used to estimate stock status in the simulations. 1000 iterations of every unique combination of alpha and ER (14 x 14) were run.
+This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ERs in simPars*
 ```{r sim input files}
 
 simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp.csv") #read in 
 CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp.csv")
 
-#OG tau = 0.6509379, test 0.75 and 0.55
-#first run with normal age dist but 0.55 tau
 #uncomment to run the simulation
-for(k in 1:14){
+for(k in 1:10){
   for(u in 1:nrow(simPar)){
     genericRecoverySim(
       simPar = simPar[u,],
       cuPar = CUPar,
-      srDat = srDat,
+      srDat = NULL,
       ricPars = sim_post_vars[[k]],
       #nTrials = 1000, #number of trials used to produce the plots
-      nTrials = 500, #good number of iterations for testing the simulation
+      nTrials = 100, #good number of iterations for testing the simulation
       cuCustomCorrMat = pcor,
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }
