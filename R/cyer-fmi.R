@@ -356,7 +356,7 @@ bind_rows(
 
 
 # posterior predictions across range of fmi values
-fmi_new <- seq(0.05, 0.5, by = 0.01)
+fmi_new <- seq(0.0, 0.5, by = 0.01)
 logit_fmi_new <- qlogis(fmi_new)
 logit_fmi_new_centered <- logit_fmi_new - mean(dat$logit_fmi)
 
@@ -412,18 +412,44 @@ pred_list <- purrr::map2(
 pp <- purrr::map(pred_list, ~ .x$preds_dat)
 pred_summary <- bind_rows(pp)
 
+
+# generate observations that show assumed error distribution used in different 
+# models
+dat_with_cv <- purrr::map2(
+  names_list, 
+  c(0.3, 0.1, 0),
+  function(x, y) {
+    dat %>% 
+      mutate(
+        model = x,
+        cv = y,
+        fmi_lower = fmi * (1 - cv),
+        fmi_upper = fmi * (1 + cv),
+        cyer_lower = can_cyer * (1 - cv),
+        cyer_upper = can_cyer * (1 + cv)
+      )
+  }
+) %>% 
+  bind_rows()
+
 mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
   geom_ribbon(aes(ymin = q5, ymax = q95), alpha = 0.2, fill = "blue") +
   geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "blue") +
   geom_line(aes(y = median), color = "blue", linewidth = 1) +
+  geom_errorbar(data = dat_with_cv, 
+                aes(x = fmi, ymin = cyer_lower, ymax = cyer_upper),
+                width = 0, alpha = 0.4, color = "gray40") +
+  geom_errorbarh(data = dat_with_cv,
+                 aes(y = can_cyer, xmin = fmi_lower, xmax = fmi_upper),
+                 height = 0, alpha = 0.4, color = "gray40")  +
   geom_point(data = dat, aes(y = can_cyer), alpha = 0.6) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   labs(
     x = "FMI",
     y = "CYER") +
   lims(
-    x = c(0.0, 0.5),
-    y = c(0.0, 0.7)
+    x = c(0.01, 0.5),
+    y = c(0.01, 0.7)
   ) +
   ggsidekick::theme_sleek() +
   facet_wrap(~model)
@@ -459,8 +485,13 @@ post_preds <- purrr::map2(
   }
 )
 
+trim_seq <- seq(0, 0.5, by = 0.05)
+
 write.csv(
-  bind_rows(post_preds),
+  bind_rows(post_preds) %>% 
+    filter(
+      fmi %in% trim_seq
+    ),
   row.names = FALSE,
   here::here(
     "data", "fmi_cyer_posterior_predictions.csv"
