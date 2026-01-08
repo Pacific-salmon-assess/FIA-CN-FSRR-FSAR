@@ -1,19 +1,16 @@
-logit_marine <- qlogis(seq(0.01, 0.3, 0.01))  # Reasonable range for logit(ER)
+logit_marine <- qlogis(seq(0.001, 0.4, 0.01))  # Reasonable range for logit(ER)
 logit_marine_scaled <- logit_marine - mean(logit_marine)
 
 set.seed(123)
 for(i in 1:100) {
-  # b0 <- rnorm(1, 0, 0.25)
-  # b1 <- rnorm(1, 1, 0.25)
-  # logit_can <- b0 + b1 * logit_marine
   
-  b0 <- rnorm(1, mean(logit_marine), 0.25)
-  b1 <- rnorm(1, 1, 0.25)
+  b0 <- rnorm(1, mean(logit_marine), 1)
+  b1 <- rnorm(1, 1, 1)
   logit_can <- b0 + b1 * logit_marine_scaled
   
   if(i == 1) {
     plot(plogis(logit_marine), plogis(logit_can), type='l', 
-         xlim=c(0,0.7), ylim=c(0,1), col=rgb(0,0,0,0.2),
+         xlim=c(0,0.4), ylim=c(0,0.4), col=rgb(0,0,0,0.2),
          xlab="Marine FMI ER", ylab="Canadian ER")
     abline(0, 1, col='red', lwd=2)
   } else {
