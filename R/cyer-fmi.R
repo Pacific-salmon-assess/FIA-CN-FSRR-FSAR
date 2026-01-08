@@ -293,6 +293,7 @@ stan_data <- list(
 )
 
 
+# state space version
 mod <- cmdstan_model(
   here::here("R", "stan", "fmi_cyer_ss.stan")
 )
@@ -307,6 +308,7 @@ fit <- mod$sample(
 )
 
 
+# standard version
 mod2 <- cmdstan_model(
   here::here("R", "stan", "fmi_cyer.stan")
 )
@@ -320,8 +322,23 @@ fit2 <- mod2$sample(
   adapt_delta = 0.97
 )
 
-fit_list <- list(fit, fit2)
-names_list <- c("state space", "normal")
+
+# state space version with reduced CV
+stan_data3 <- stan_data
+stan_data3$mean_cv <- 0.1
+
+fit3 <- mod$sample(
+  data = stan_data3,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97
+)
+
+
+fit_list <- list(fit, fit3, fit2)
+names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
 
 
 ## summarize fitted parameters
@@ -372,7 +389,7 @@ pred_list <- purrr::map2(
     }
     
     # Summarize preds
-    tibble(
+    pred_dat <- tibble(
       fmi = fmi_new,
       logit_fmi = logit_fmi_new,
       logit_fmi_centered = logit_fmi_new_centered,
@@ -385,64 +402,76 @@ pred_list <- purrr::map2(
       q95 = apply(preds, 2, quantile, probs = 0.95),
       model = y
     )
+    
+    out_list <- list(preds, pred_dat)
+    names(out_list) <- c("preds_mat", "preds_dat")
+    return(out_list)
   }
 )
   
-pred_summary <- bind_rows(pred_list)
+pp <- purrr::map(pred_list, ~ .x$preds_dat)
+pred_summary <- bind_rows(pp)
 
-ggplot(pred_summary, aes(x = fmi)) +
+mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
   geom_ribbon(aes(ymin = q5, ymax = q95), alpha = 0.2, fill = "blue") +
   geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "blue") +
   geom_line(aes(y = median), color = "blue", linewidth = 1) +
+  geom_point(data = dat, aes(y = can_cyer), alpha = 0.6) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   labs(
     x = "FMI",
     y = "CYER") +
   lims(
-    x = c(0.05, 0.52),
-    y = c(0.05, 0.52)
+    x = c(0.0, 0.5),
+    y = c(0.0, 0.7)
   ) +
   ggsidekick::theme_sleek() +
   facet_wrap(~model)
 
 
-# Violin plots showing asymmetry of distributions
-new_data <- data.frame(fmi = c(0.05, 0.3)) %>%  # Example new fmi values
-  mutate(
-    logit_fmi = qlogis(fmi),
-    sd_logit_fmi = median(dat$sd_logit_fmi)
+png(here::here("figs", "model-comp-ribbon.png"), height = 4.5, 
+    width = 7.5, units = "in", res = 250)
+mod_comp_ribbon
+dev.off()
+
+
+
+## export posterior predictions
+dim(pred_list[[1]]$preds_mat)
+
+post_preds <- purrr::map2(
+  pred_list, names_list,
+  function(x, y) {
+    post_draws <- x$preds_mat
+    colnames(post_draws) <- fmi_new
+    post_draws %>%
+      as.data.frame() %>%
+      mutate(iteration = row_number()) %>%
+      pivot_longer(
+        cols = -iteration,
+        names_to = "fmi",
+        values_to = "cyer"
+      ) %>% 
+      mutate(
+        fmi = as.numeric(fmi),
+        model = y
+      )
+  }
+)
+
+write.csv(
+  bind_rows(post_preds),
+  row.names = FALSE,
+  here::here(
+    "data", "fmi_cyer_posterior_predictions.csv"
   )
-
-dd <- data.frame(
-  fmi = rep(new_data$fmi, each = nrow(preds)),
-  est_cyer = as.numeric(
-    c(preds[, which(fmi_new == 0.05)], preds[ ,  which(fmi_new == 0.3)])
-  )
-) %>% 
-  group_by(fmi) %>% 
-  mutate(
-    median_cyer = median(est_cyer),
-    model = "state space"
-  )
-
-ggplot(dd) +
-  ggridges::stat_density_ridges(
-    aes(x = est_cyer, y = model),
-    quantile_lines = TRUE,
-    quantiles = 2,  # This gives you the median (50th percentile)
-    alpha = 0.7
-  ) +
-  geom_vline(data = dd, 
-             aes(xintercept = fmi), colour = "red") +
-  facet_wrap(~fmi) +
-  labs(x = "Predicted CWT-based CYER", y = "Model") +
-  ggsidekick::theme_sleek()
+)
 
 
+##### (INCOMPLETE) ######
+#### UPDATE TO UNCENTER BEFORE USING ######
 
-
-
-## as above but with stock-specific predictions
+## as above but with stock-specific predictions 
 
 # Extract indicator-specific random effects
 indicator_names <- unique(dat$indicator)
