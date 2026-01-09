@@ -28,7 +28,7 @@ simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp.csv")
 CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
-alpha_nu <- seq(from = 0.36, to = 2.13, length.out = 10)
+alpha_nu <- seq(0.36, 2.13, by = 0.195)#use this for next run of sim: seq(from = 0.36, to = 2.13, length.out = 10)
 
 #creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
@@ -323,7 +323,7 @@ CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], CU_plot[[3]], CU_plot[[4]], C
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 7.5, width = 6, units = "in", filename = "sim_sum_CU.pdf")
+ggsave(CU_plot, height = 7.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
 
 ```
 
@@ -428,7 +428,7 @@ QET <- ggdraw(plot_grid(QET_plot[[1]], QET_plot[[2]], QET_plot[[3]], QET_plot[[4
 
 QET_plot <- cowplot::plot_grid(QET)
 
-ggsave(QET_plot, height = 7.5, width = 6, units = "in", filename = "sim_sum_CU_QET.pdf")
+ggsave(QET_plot, height = 7.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_QET.pdf")
 
 ```
 
@@ -477,7 +477,7 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
    # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
    # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
 
-ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "sim_sum_SMU.pdf")
+ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_SMU.pdf")
 
 ```
 

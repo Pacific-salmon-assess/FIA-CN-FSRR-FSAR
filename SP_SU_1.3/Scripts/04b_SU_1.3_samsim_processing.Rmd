@@ -258,7 +258,7 @@ CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], CU_plot[[3]], CU_plot[[4]], C
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 8.5, width = 6, units = "in", filename = "sim_sum_CU.pdf")
+ggsave(CU_plot, height = 8.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU.pdf")
 
 ```
 
@@ -357,7 +357,7 @@ QET <- ggdraw(plot_grid(QET_plot[[1]], QET_plot[[2]], QET_plot[[3]], QET_plot[[4
 
 QET_plot <- cowplot::plot_grid(QET)
 
-ggsave(QET_plot, height = 8.5, width = 6, units = "in", filename = "sim_sum_CU_QET.pdf")
+ggsave(QET_plot, height = 8.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_QET.pdf")
 
 ```
 
@@ -406,7 +406,7 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
    # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
    # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
 
-ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "sim_sum_SMU.pdf")
+ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_SMU.pdf")
 
 ```
 
