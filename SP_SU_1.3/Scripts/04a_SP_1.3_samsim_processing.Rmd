@@ -28,7 +28,7 @@ simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp.csv")
 CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
-alpha_nu <- seq(0.36, 2.13, by = 0.195)#use this for next run of sim: seq(from = 0.36, to = 2.13, length.out = 10)
+alpha_nu <- seq(0.36, 2.13, length.out = 10)
 
 #creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
@@ -82,78 +82,6 @@ The success of each trial examines the probability of the geometric mean of the 
 
 ```{r sim output summarization}
 
-###code that summarizes mean spawner abundance so show issues with OG simulation approach
-# sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-04",
-#                                              ifelse(CU == 2, "CK-08",
-#                                                     ifelse(CU == 3, "CK-10",
-#                                                            ifelse(CU == 4, "CK-12", "CK-18"))))) %>% 
-#                                  dplyr::select(iteration, year, CU_ID = CU, scenario, spawners, beta, alpha, sigma) %>% 
-#    mutate(targetER = as.numeric(substr(scenario, 3, nchar(scenario)))) %>% 
-#    group_by(CU_ID, scenario, alpha, year) %>% 
-#    summarize(m_spawners = mean(spawners))
-
-#
-
-#plot code for showing how the OG approach didn't work
-# #esc dat summary by CU for most recent generational average
-# cu_lines <- esc_dat %>% filter(CU_ID %in% c("CK-04", "CK-08", "CK-10", "CK-12", "CK-18") & Year %in% c(2020:2024)) %>%
-#    mutate(SpnForAbd_Wild = ifelse(is.na(SpnForAbd_Wild == T), 200, SpnForAbd_Wild)) %>% 
-#    group_by(CU_ID) %>% summarize(gm_spawners = (prod(SpnForAbd_Wild))^(1/5))
-# 
-# #plots for CK-04
-# sim_sum %>%
-#    filter(year %in% c(61:105) & CU_ID == 1) %>% ggplot(aes(x = year, y = m_spawners, colour = scenario))+
-#    geom_line(alpha = 0.5)+
-#    geom_hline(yintercept = cu_lines[[1,2]], linetype = "dashed", colour = "red")+
-#    geom_vline(xintercept = 89, linetype = "dashed")+
-#    #geom_smooth(method = lm)+
-#    facet_wrap(.~ alpha, nrow = 2, ncol = 5)+
-#    theme_classic()
-# 
-# #plots for CK-08
-# sim_sum %>%
-#    filter(year %in% c(61:105) & CU_ID == 2) %>% ggplot(aes(x = year, y = m_spawners, colour = scenario))+
-#    geom_line(alpha = 0.5)+
-#    geom_hline(yintercept = cu_lines[[2,2]], linetype = "dashed", colour = "red")+
-#    geom_vline(xintercept = 89, linetype = "dashed")+
-#    #geom_smooth(method = lm)+
-#    facet_wrap(.~ alpha, nrow = 2, ncol = 5)+
-#    theme_classic()
-# 
-# #plots for CK-10
-# sim_sum %>%
-#    filter(year %in% c(61:105) & CU_ID == 3) %>% ggplot(aes(x = year, y = m_spawners, colour = scenario))+
-#    geom_line(alpha = 0.5)+
-#    geom_hline(yintercept = cu_lines[[3,2]], linetype = "dashed", colour = "red")+
-#    geom_vline(xintercept = 89, linetype = "dashed")+
-#    #geom_smooth(method = lm)+
-#    facet_wrap(.~ alpha, nrow = 2, ncol = 5)+
-#    theme_classic()
-# 
-# #plots for CK-12
-# sim_sum %>%
-#    filter(year %in% c(61:105) & CU_ID == 4) %>% ggplot(aes(x = year, y = m_spawners, colour = scenario))+
-#    geom_line(alpha = 0.5)+
-#    geom_hline(yintercept = cu_lines[[4,2]], linetype = "dashed", colour = "red")+
-#    geom_vline(xintercept = 89, linetype = "dashed")+
-#    #geom_smooth(method = lm)+
-#    facet_wrap(.~ alpha, nrow = 2, ncol = 5)+
-#    theme_classic()
-# 
-# #plots for CK-18
-# sim_sum %>%
-#    filter(year %in% c(61:105) & CU_ID == 5) %>% ggplot(aes(x = year, y = m_spawners, colour = scenario))+
-#    geom_line(alpha = 0.5)+
-#    geom_hline(yintercept = cu_lines[[5,2]], linetype = "dashed", colour = "red")+
-#    geom_vline(xintercept = 89, linetype = "dashed")+
-#    #geom_smooth(method = lm)+
-#    facet_wrap(.~ alpha, nrow = 2, ncol = 5)+
-#    theme_classic()
-```
-
-
-```{r sim output summarization}
-
 sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-04",
                                              ifelse(CU == 2, "CK-08",
                                                     ifelse(CU == 3, "CK-10",
@@ -166,7 +94,7 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-04",
 summ_smax0.2 <- readRDS("smax0.2.RDS")
 
 sim_sum_CU <- sim_sum %>%
-   filter(year %in% c(101:105)) %>%  #need to update when new sim is run... will be years 41:45 
+   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
@@ -183,7 +111,7 @@ sim_sum_CU <- sim_sum %>%
 
 #QET set to 50 fish for similar life-history of Chinook in the Snake River Basin, so used that here
 sim_sum_CU_QET <- sim_sum %>%
-   filter(year %in% c(101:105)) %>%  #need to update when new sim is run... will be years 41:45 
+   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 50, 1,
@@ -199,7 +127,7 @@ sim_sum_CU_QET <- sim_sum %>%
    summarize(p_fail = mean(cu_fail))
 
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
-sim_sum_SMU <- sim_sum %>% filter(year %in% c(101:105)) %>%  #need to update when new sim is run... will be years 41:45 
+sim_sum_SMU <- sim_sum %>% filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
@@ -225,6 +153,19 @@ This chunk defines a function for converting CYER to FMI which is used to calcul
 Code chunk for going back and forth between CYER and FMI for secondary Y-axis. *To be coded when FMI~CYER analysis is finished*
 ```{r ER transform}
 
+# i_o = -1.43
+# s_o = 0.884
+i_p = -1.29
+s_p = 0.0997
+
+# opti <- function(targetER){
+#    FMI = (logit(targetER) - i_o) / s_o
+# }
+
+pess <- function(targetER){
+   FMI = (-log((1 / targetER) - 1) - i_p) / s_p
+   print(FMI)
+}
 
 
 ```
@@ -262,7 +203,7 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(sec.axis = sec_axis(~ (. * 1), #equation drawn from FMI~CYER analysis that converts one to the other 
+   scale_y_continuous(sec.axis = sec_axis(~ (. * 1.1 + 0.1), #equation drawn from FMI~CYER analysis that converts one to the other 
                                           name = "FMI"),
                       expand = c(0,0))+
    labs(y = "CAN CYER", 
