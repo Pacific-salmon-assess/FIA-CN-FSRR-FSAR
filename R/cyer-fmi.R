@@ -406,15 +406,18 @@ pred_list <- purrr::map2(
     
     for (i in 1:n_draws) {
       for (j in 1:N_new) {
-        # Linear predictor on logit scale (average indicator, so no random effect)
-        mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j]
+        # Linear predictor on logit scale
+        mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j] 
         
-        # Add process error (Beta precision)
-        logit_pred <- rnorm(1, mu_ij, 1 / sqrt(phi_draws[i]))
-        # logit_pred <- mu_ij
+        # Convert to probability scale
+        mu_prob <- plogis(mu_ij)
         
-        # Back-transform to proportion scale
-        preds[i, j] <- plogis(logit_pred)
+        # Beta distribution parameters
+        alpha <- mu_prob * phi_draws[i]
+        beta_param <- (1 - mu_prob) * phi_draws[i]
+        
+        # Generate prediction from Beta distribution (CORRECT)
+        preds[i, j] <- rbeta(1, alpha, beta_param)
       }
     }
     
@@ -478,8 +481,8 @@ mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
     x = "FMI",
     y = "CYER") +
   lims(
-    x = c(0.01, 0.5),
-    y = c(0.01, 0.7)
+    x = c(0.0, 0.5),
+    y = c(0.0, 0.7)
   ) +
   ggsidekick::theme_sleek() +
   facet_wrap(~model)
