@@ -298,6 +298,22 @@ mod <- cmdstan_model(
   here::here("R", "stan", "fmi_cyer_ss.stan")
 )
 
+# informative init values required for low CV, use here as well for consistency
+init_fn <- function(chain_id) {
+  # Add chain-specific jitter
+  list(
+    intercept = -1.5 + rnorm(1, 0, 0.3),
+    slope = 0.7 + rnorm(1, 0, 0.2),
+    sigma_indicator = abs(0.3 + rnorm(1, 0, 0.15)),
+    phi = abs(8 + rnorm(1, 0, 2)),
+    z_indicator = rnorm(stan_data$N_indicators, 0, 0.5),
+    logit_fmi_true_centered = stan_data$logit_fmi_obs + 
+      rnorm(stan_data$N, 0, 0.02),
+    can_cyer_logit_true = qlogis(stan_data$can_cyer_obs) + 
+      rnorm(stan_data$N, 0, 0.02)
+  )
+}
+
 fit <- mod$sample(
   data = stan_data,
   chains = 4,
@@ -331,9 +347,11 @@ fit3 <- mod$sample(
   data = stan_data3,
   chains = 4,
   parallel_chains = 4,
-  iter_warmup = 1000,
+  iter_warmup = 2000,
   iter_sampling = 2000,
-  adapt_delta = 0.97
+  adapt_delta = 0.97,
+  max_treedepth = 12,
+  init = init_fn  # Use custom initialization
 )
 
 
@@ -342,17 +360,27 @@ names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
 
 
 ## summarize fitted parameters
-fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
-fixed_summary <- fit2$summary(variables = fixed_params)
+sum_dat <- purrr::map2(
+  fit_list, names_list,
+  function(x, y) {
+    fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
+    fixed_summary <- x$summary(variables = fixed_params)
+    
+    indicator_summary <- x$summary(variables = "indicator_effects")
+    
+    bind_rows(
+      fixed_summary,
+      indicator_summary
+    ) %>%
+      select(variable, mean, median, sd, q5 = `q5`, q95 = `q95`, rhat, ess_bulk, 
+             ess_tail) %>% 
+      mutate(
+        model = y
+      )
+  }
+) %>% 
+  bind_rows()
 
-indicator_summary <- fit2$summary(variables = "indicator_effects")
-
-bind_rows(
-  fixed_summary,
-  indicator_summary
-) %>%
-  select(variable, mean, median, sd, q5 = `q5`, q95 = `q95`, rhat, ess_bulk, 
-         ess_tail)
 
 
 # posterior predictions across range of fmi values
@@ -379,12 +407,8 @@ pred_list <- purrr::map2(
         # Linear predictor on logit scale (average indicator, so no random effect)
         mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j]
         
-        # Add process error (Beta precision)
-        # logit_pred <- rnorm(1, mu_ij, 1 / sqrt(phi_draws[i]))
-        logit_pred <- mu_ij
-        
         # Back-transform to proportion scale
-        preds[i, j] <- plogis(logit_pred)
+        preds[i, j] <- plogis(mu_ij)
       }
     }
     
