@@ -153,19 +153,26 @@ This chunk defines a function for converting CYER to FMI which is used to calcul
 Code chunk for going back and forth between CYER and FMI for secondary Y-axis. *To be coded when FMI~CYER analysis is finished*
 ```{r ER transform}
 
-# i_o = -1.43
-# s_o = 0.884
+i_o = -1.55
+s_o = 0.408
 i_p = -1.29
-s_p = 0.0997
+s_p = 0.0970
 
-# opti <- function(targetER){
-#    FMI = (logit(targetER) - i_o) / s_o
-# }
+opti <- function(FMI){
+   CYER = inv.logit(FMI * s_o + i_o)
+   print(CYER)
+}
+
+df_opti <- data.frame(FMI, opti(FMI)) %>% 
+   dplyr::select(FMI, CYER = opti.FMI.)
 
 pess <- function(targetER){
-   FMI = (-log((1 / targetER) - 1) - i_p) / s_p
-   print(FMI)
+   CYER = inv.logit(FMI * s_p + i_p)
+   print(CYER)
 }
+
+df_pess <- data.frame(FMI, pess(FMI)) %>% 
+   dplyr::select(FMI, CYER = pess.FMI.)
 
 
 ```
@@ -203,7 +210,7 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(sec.axis = sec_axis(~ (. * 1.1 + 0.1), #equation drawn from FMI~CYER analysis that converts one to the other 
+   scale_y_continuous(sec.axis = sec_axis(~ inv.logit((log(. / (1 - .)) - i_p) / s_p), #equation drawn from FMI~CYER analysis that converts one to the other 
                                           name = "FMI"),
                       expand = c(0,0))+
    labs(y = "CAN CYER", 
