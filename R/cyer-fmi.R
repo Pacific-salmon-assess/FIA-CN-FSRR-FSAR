@@ -362,10 +362,10 @@ saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
 
 
 ## summarize fitted parameters
+fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
 sum_dat <- purrr::map2(
   fit_list, names_list,
   function(x, y) {
-    fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
     fixed_summary <- x$summary(variables = fixed_params)
     
     indicator_summary <- x$summary(variables = "indicator_effects")
