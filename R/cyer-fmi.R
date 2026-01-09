@@ -358,6 +358,8 @@ fit3 <- mod$sample(
 fit_list <- list(fit, fit3, fit2)
 names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
 
+saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
+
 
 ## summarize fitted parameters
 sum_dat <- purrr::map2(
@@ -407,8 +409,12 @@ pred_list <- purrr::map2(
         # Linear predictor on logit scale (average indicator, so no random effect)
         mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j]
         
+        # Add process error (Beta precision)
+        logit_pred <- rnorm(1, mu_ij, 1 / sqrt(phi_draws[i]))
+        # logit_pred <- mu_ij
+        
         # Back-transform to proportion scale
-        preds[i, j] <- plogis(mu_ij)
+        preds[i, j] <- plogis(logit_pred)
       }
     }
     
@@ -487,7 +493,7 @@ dev.off()
 
 
 ## export posterior predictions
-dim(pred_list[[1]]$preds_mat)
+pp <- pred_list[[1]]$preds_mat
 
 post_preds <- purrr::map2(
   pred_list, names_list,
