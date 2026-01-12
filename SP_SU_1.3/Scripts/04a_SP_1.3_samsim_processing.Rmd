@@ -14,9 +14,8 @@ library(cowplot)
 library(boot)
 library(ggpattern)
 
-#esc data for appending behind simulation data for calculation of trends
-esc_dat <- read.csv("SP_SU_1.3\\Data_in\\sp_su_1.3_escape_series.csv")
-fit <- summary(readRDS("R\\sp_su_1.3_fit.RDS"))
+#posterior data from CYER ~ FMI relationship
+ER_post <- read.csv("data\\fmi_cyer_posterior_predictions.csv")
 ```
 
 
@@ -149,14 +148,15 @@ sim_sum_SMU <- sim_sum %>% filter(year %in% c(41:45)) %>%  #need to update when 
 
 The following code chunks create icecream plots that illustrate the probability of exceeding the thresholds detailed above (1-3). Note that the secondary y-axes are coded to show the equivalent FMI for a given CYER measure.
 
-This chunk defines a function for converting CYER to FMI which is used to calculate the secondary axes in the icecream plots.
-Code chunk for going back and forth between CYER and FMI for secondary Y-axis. *To be coded when FMI~CYER analysis is finished*
+This chunk defines a function for converting FMI to CYER which is used to calculate the secondary axes in the icecream plots.
 ```{r ER transform}
 
-i_o = -1.55
-s_o = 0.408
-i_p = -1.29
-s_p = 0.0970
+i_o = -1.54
+s_o = 0.400
+i_p = -1.28
+s_p = 0.0843
+
+FMI = seq(0, 1, by = 0.01)
 
 opti <- function(FMI){
    CYER = inv.logit(FMI * s_o + i_o)
@@ -166,6 +166,8 @@ opti <- function(FMI){
 df_opti <- data.frame(FMI, opti(FMI)) %>% 
    dplyr::select(FMI, CYER = opti.FMI.)
 
+anns_opti <- df_opti[FMI %in% seq(0, 0.5, by = 0.05), ]
+
 pess <- function(targetER){
    CYER = inv.logit(FMI * s_p + i_p)
    print(CYER)
@@ -174,8 +176,54 @@ pess <- function(targetER){
 df_pess <- data.frame(FMI, pess(FMI)) %>% 
    dplyr::select(FMI, CYER = pess.FMI.)
 
+anns_pess <- df_pess[FMI %in% seq(0, 0.5, by = 0.05), ]
 
 ```
+
+Illustrating the CYER FMI relationship in the optimistic and pessimistic scenarios
+```{r freq dist plot of FMI vs CYER}
+
+#pessimistic scenario
+med_pess <- ER_post %>% filter(model == "state space - 0.3 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+pess_plot <- ER_post %>% filter(model == "state space - 0.3 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_pess, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   labs(x = NULL, y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(0.9, 0.80),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+#optimistic scenario
+med_opti <- ER_post %>% filter(model == "state space - 0.1 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+opti_plot <- ER_post %>% filter(model == "state space - 0.1 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_opti, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   labs(x = NULL, y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(0.9, 0.80),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+
+
+
+```
+
 
 
 ```{r sim results vis CU sum}
@@ -210,25 +258,11 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(sec.axis = sec_axis(~ inv.logit((log(. / (1 - .)) - i_p) / s_p), #equation drawn from FMI~CYER analysis that converts one to the other 
-                                          name = "FMI"),
-                      expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
-   theme_classic()#+
-   
-   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
-   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
-   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+   theme_classic()
 }
 
 get_legend <- function(plot, legend = NULL) {
@@ -258,20 +292,37 @@ get_legend <- function(plot, legend = NULL) {
 legend1 = get_legend(CU_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   CU_plot[[i]] <- CU_plot[[i]] + 
-   theme(legend.position='none')
+   CU_plot[[i]] <- CU_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = if(i %in% c(2,4)){
+            element_blank()
+         } else{
+            element_text(colour = "black")},
+         axis.title.y = if(i %in% c(2,4)){
+            element_blank()
+         } else{
+            element_text(colour = "black")},
+         plot.margin = if(i %in% c(2,4)){
+            margin(r = 0)
+         } else{
+            margin()})
 }
 
-CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], CU_plot[[3]], CU_plot[[4]], CU_plot[[5]], legend1,
-                       rel_widths = c(1, 1, 1, 1, 1, .2),
-                       ncol = 2, nrow = 3, axis = c("l"), align = c("hv"),
-                       labels = c("CK-04", "CK-08", "CK-10", "CK-12", "CK-18"),
+CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], pess_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()),
+                       CU_plot[[3]], CU_plot[[4]], pess_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()),
+                       CU_plot[[5]], pess_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()), legend1,
+                       #rel_widths = c(1, 1, 1, 1, 1, .2),
+                       ncol = 3, nrow = 3, axis = c("l"), align = c("hv"),
+                       labels = c("CK-04", "CK-08", "", "CK-10", "CK-12", "", "CK-18", ""),
                        label_size = 12,
                        label_x = 0.55, label_y = 0.9))
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 7.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
+ggsave(CU_plot, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
 
 ```
 
@@ -308,9 +359,8 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(sec.axis = sec_axis(~ (. * 1), #equation drawn from FMI~CYER analysis that converts one to the other 
-                                          name = "FMI"),
-                      expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
    theme_classic()#+
@@ -407,7 +457,8 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
    theme_classic()#+
@@ -430,5 +481,41 @@ ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "SP_SU_1.3
 ```
 
 
+```{r freq dist plot of FMI vs CYER}
+
+#pessimistic scenario
+med_pess <- ER_post %>% filter(model == "state space - 0.3 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+ER_post %>% filter(model == "state space - 0.3 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.5),
+                      expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_pess, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   theme_classic()
+
+#optimistic scenario
+med_opti <- ER_post %>% filter(model == "state space - 0.1 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+ER_post %>% filter(model == "state space - 0.1 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.5),
+                      expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_opti, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   theme_classic()
+
+
+
+
+```
 
 
