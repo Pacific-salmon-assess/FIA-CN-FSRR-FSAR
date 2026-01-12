@@ -15,7 +15,8 @@ library(boot)
 library(ggpattern)
 
 #posterior data from CYER ~ FMI relationship
-ER_post <- read.csv("data\\fmi_cyer_posterior_predictions.csv")
+ER_post <- readRDS("data\\fmi_cyer_posterior_predictions.rds") %>% 
+   filter(fmi %in% c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5))
 ```
 
 
@@ -23,8 +24,8 @@ This code chunk retrieves the simulation results from the folders and combines t
 ```{r, read in scenario outputs}
 
 #retrieving the basic simulation parameterization
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
 alpha_nu <- seq(0.36, 2.13, length.out = 10)
@@ -308,11 +309,11 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
             margin()})
 }
 
-CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], pess_plot + theme(axis.text.y = element_blank(),
+CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], opti_plot + theme(axis.text.y = element_blank(),
                                                                      axis.title.y = element_blank()),
-                       CU_plot[[3]], CU_plot[[4]], pess_plot + theme(axis.text.y = element_blank(),
+                       CU_plot[[3]], CU_plot[[4]], opti_plot + theme(axis.text.y = element_blank(),
                                                                      axis.title.y = element_blank()),
-                       CU_plot[[5]], pess_plot + theme(axis.text.y = element_blank(),
+                       CU_plot[[5]], opti_plot + theme(axis.text.y = element_blank(),
                                                                      axis.title.y = element_blank()), legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 3, nrow = 3, axis = c("l"), align = c("hv"),

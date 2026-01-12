@@ -189,8 +189,8 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ERs in simPars*
 ```{r sim input files}
 
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp.csv") #read in 
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv") #read in 
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
 
 #uncomment to run the simulation
 for(k in 1:10){
@@ -200,8 +200,8 @@ for(k in 1:10){
       cuPar = CUPar,
       srDat = NULL,
       ricPars = sim_post_vars[[k]],
-      #nTrials = 1000, #number of trials used to produce the plots
-      nTrials = 10, #good number of iterations for testing the simulation
+      nTrials = 1000, #number of trials used to produce the plots
+      #nTrials = 10, #good number of iterations for testing the simulation
       cuCustomCorrMat = pcor,
       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
     }
