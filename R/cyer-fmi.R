@@ -521,13 +521,10 @@ post_preds <- purrr::map2(
   }
 )
 
-trim_seq <- seq(0, 0.5, by = 0.05)
-
-write.csv(
+saveRDS(
   bind_rows(post_preds) ,
-  row.names = FALSE,
   here::here(
-    "data", "fmi_cyer_posterior_predictions.csv"
+    "data", "fmi_cyer_posterior_predictions.rds"
   )
 )
 
