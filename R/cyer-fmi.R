@@ -94,80 +94,80 @@ cyer_dat <- cyer_dat1 %>%
 
 ## FOLLOWING NEEDS TO BE REVISED WITH UPDATED CYER FORMATTING ##
 
-dome_cyer_dat <- read.csv(
-  here::here("data", "DOM_CYER.csv")
-) %>% 
-  janitor::clean_names() %>%
-  filter(mort_type == "TM") %>% 
-  mutate(
-    year = as.numeric(catch_year),
-    smu = "spr_1.3",
-    nation = ifelse(grepl("CA", fishery_group), "can_er", "us_er"),
-    indicator = stock
-  ) %>% 
-  group_by(
-    year, smu, indicator, nation
-  ) %>% 
-  summarize(
-    exp_rate = sum(cyer) / 100
-  ) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = "nation", values_from = "exp_rate") %>% 
-  mutate(
-    total_er = can_er + us_er
-  ) %>% 
-  select(
-    colnames(cyer_dat)
-  )
-
-
-library(reshape2)
-library(corrplot)
-library(GGally)
-
-cyer_wide1 <- cyer_dat %>% 
-  select(year, indicator, total_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "total_er") 
-cyer_wide2 <- rbind(cyer_dat, dome_cyer_dat) %>% 
-  filter(year %in% dome_cyer_dat$year) %>%
-  select(year, indicator, total_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "total_er") 
-
-cyer_wide_can <- rbind(cyer_dat, dome_cyer_dat) %>% 
-  filter(year %in% dome_cyer_dat$year) %>%
-  select(year, indicator, can_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "can_er") 
-
-
-cor_foo <- function (x) {
-  # cor_mat <- cor(x %>% select(-year),
-  #                use = "pairwise.complete.obs")
-  # 
-  # corrplot.mixed(cor_mat,
-  #                lower = "circle",   # lower triangle = circles
-  #                upper = "number",   # upper triangle = numeric values
-  #                tl.col = "black",
-  #                tl.srt = 45,
-  #                diag   = "n")
-  # df2 <- 
-  ggpairs(x %>% select(-year),
-          upper = list(continuous = wrap("cor", size = 4)),
-          lower = list(continuous = "points"),
-          diag  = list(continuous = "barDiag")) +
-    theme(strip.text = element_text(size = 10))
-}
-
-cor_foo(cyer_wide1)
-
-png(here::here("figs", "cwt_indicator_total_cyer.png"), height = 6.5, 
-    width = 6.5, units = "in", res = 250)
-cor_foo(cyer_wide2)
-dev.off()
-
-png(here::here("figs", "cwt_indicator_can_cyer.png"), height = 6.5, 
-    width = 6.5, units = "in", res = 250)
-cor_foo(cyer_wide_can)
-dev.off()
+# dome_cyer_dat <- read.csv(
+#   here::here("data", "DOM_CYER.csv")
+# ) %>% 
+#   janitor::clean_names() %>%
+#   filter(mort_type == "TM") %>% 
+#   mutate(
+#     year = as.numeric(catch_year),
+#     smu = "spr_1.3",
+#     nation = ifelse(grepl("CA", fishery_group), "can_er", "us_er"),
+#     indicator = stock
+#   ) %>% 
+#   group_by(
+#     year, smu, indicator, nation
+#   ) %>% 
+#   summarize(
+#     exp_rate = sum(cyer) / 100
+#   ) %>% 
+#   ungroup() %>% 
+#   pivot_wider(names_from = "nation", values_from = "exp_rate") %>% 
+#   mutate(
+#     total_er = can_er + us_er
+#   ) %>% 
+#   select(
+#     colnames(cyer_dat)
+#   )
+# 
+# 
+# library(reshape2)
+# library(corrplot)
+# library(GGally)
+# 
+# cyer_wide1 <- cyer_dat %>% 
+#   select(year, indicator, total_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "total_er") 
+# cyer_wide2 <- rbind(cyer_dat, dome_cyer_dat) %>% 
+#   filter(year %in% dome_cyer_dat$year) %>%
+#   select(year, indicator, total_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "total_er") 
+# 
+# cyer_wide_can <- rbind(cyer_dat, dome_cyer_dat) %>% 
+#   filter(year %in% dome_cyer_dat$year) %>%
+#   select(year, indicator, can_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "can_er") 
+# 
+# 
+# cor_foo <- function (x) {
+#   # cor_mat <- cor(x %>% select(-year),
+#   #                use = "pairwise.complete.obs")
+#   # 
+#   # corrplot.mixed(cor_mat,
+#   #                lower = "circle",   # lower triangle = circles
+#   #                upper = "number",   # upper triangle = numeric values
+#   #                tl.col = "black",
+#   #                tl.srt = 45,
+#   #                diag   = "n")
+#   # df2 <- 
+#   ggpairs(x %>% select(-year),
+#           upper = list(continuous = wrap("cor", size = 4)),
+#           lower = list(continuous = "points"),
+#           diag  = list(continuous = "barDiag")) +
+#     theme(strip.text = element_text(size = 10))
+# }
+# 
+# cor_foo(cyer_wide1)
+# 
+# png(here::here("figs", "cwt_indicator_total_cyer.png"), height = 6.5, 
+#     width = 6.5, units = "in", res = 250)
+# cor_foo(cyer_wide2)
+# dev.off()
+# 
+# png(here::here("figs", "cwt_indicator_can_cyer.png"), height = 6.5, 
+#     width = 6.5, units = "in", res = 250)
+# cor_foo(cyer_wide_can)
+# dev.off()
 
 
 ## CLEAN FMI DATA --------------------------------------------------------------
@@ -360,6 +360,9 @@ names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
 
 saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
 
+fit_list <- readRDS(here::here("data", "fmi_cyer_fits.rds"))
+
+
 
 ## summarize fitted parameters
 fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
@@ -521,10 +524,7 @@ post_preds <- purrr::map2(
 trim_seq <- seq(0, 0.5, by = 0.05)
 
 write.csv(
-  bind_rows(post_preds) %>% 
-    filter(
-      fmi %in% trim_seq
-    ),
+  bind_rows(post_preds) ,
   row.names = FALSE,
   here::here(
     "data", "fmi_cyer_posterior_predictions.csv"
