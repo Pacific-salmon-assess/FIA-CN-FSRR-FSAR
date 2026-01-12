@@ -1,7 +1,0 @@
-manUnit,stkName,stk,model,minER,maxER,cvERcan,cvERam,usERScalar,canERScalar,tauCycAge,alpha,beta0,sigma,sigmaProd,coef1,covarInit,mu_logCovar1,sig_logCovar1,min_logCovar,max_logCovar,aveGenTime,ageFirstRec,ageMaxRec,larkAlpha,larkBeta0,larkBeta1,larkBeta2,larkBeta3,larkSigma,meanRec2,meanRec3,meanRec4,meanRec5,meanRec6,medianRec,lowQRec,highQRec,meanDBE,sdDBE,medMA,meanForecast,sdForecast,shape.hatch,scale.hatch,max.hatchery.spawners
-FraserCN,`CK-05`,1,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,`CK-06`,2,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,`CK-09`,3,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,`CK-11`,4,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,`CK-14`,5,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
-FraserCN,`CK-19`,6,ricker,0.005,0.95,0.25,0.66,1,1,0.79,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,5,2,6,NA,NA,NA,NA,NA,NA,0,11.1,48,50.8,0.1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
