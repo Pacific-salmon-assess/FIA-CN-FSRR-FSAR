@@ -35,23 +35,36 @@ epad_dat <- read.csv(
   here("SP_SU_1.3", "Data_in", "Fraser_Chinook_Releases_1975-2024.csv")
 )
 
+wsp_cu_dat <-read.csv(
+  here("SP_SU_1.3", "Data_in", "Retro_Synoptic_Details_FraserSandbox.csv")
+)
+wsp_cu_lookup <- read.csv(
+  here("SP_SU_1.3", "Data_in", "MOD_MAIN_CU_LOOKUP_FOR_SOS_IP_082025.csv")
+)
+
+wsp_cu_years <- read.csv(
+  here("SP_SU_1.3", "Data_in", "CU_Data_FraserSandbox_1.3_startyrs.csv")
+)
+
 ```
 
 Code chunk to create the Spring 1.3 recruitment plot
 ```{r recruitment plot}
 
 recs <- ER_dat %>%
-  select(year, recruits_CYER, recruits_FMI) %>%
+  select(year, recruits_FMI) %>%
+  # select(year, recruits_CYER, recruits_FMI) %>%
   pivot_longer(
-    cols = c(recruits_CYER, recruits_FMI),
+    cols = c(recruits_FMI),
+    # cols = c(recruits_CYER, recruits_FMI),
     names_to = "source",
     values_to = "recruits"
   ) %>%
   mutate(
     source = recode(
       source,
-      recruits_CYER = "CYER",
-      recruits_FMI  = "FMI"
+      # recruits_CYER = "CYER",
+      recruits_FMI  = "FMI",
     ))
   
 
@@ -69,7 +82,8 @@ ggplot(aes(x = year, y = recruits / 1000, colour = source)) +
     colour = NULL
   ) +
   scale_colour_manual(
-    values = c("CYER" = "black", "FMI" = "grey70")
+    values = c("FMI" = "black")
+    # values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
     breaks = seq(
@@ -89,16 +103,18 @@ Code chunk to create the Spring 1.3 catch plot
 
 
 cat <- ER_dat %>%
-  select(year, catch_CYER, catch_FMI) %>%
+  select(year,catch_FMI) %>%
+  # select(year, catch_CYER, catch_FMI) %>%
   pivot_longer(
-    cols = c(catch_CYER, catch_FMI),
+    cols = c(catch_FMI),
+    # cols = c(catch_CYER, catch_FMI),
     names_to = "source",
     values_to = "catch"
   ) %>%
   mutate(
     source = recode(
       source,
-      catch_CYER = "CYER",
+      # catch_CYER = "CYER",
       catch_FMI  = "FMI"
     ))
   
@@ -109,21 +125,22 @@ cat <- ER_dat %>%
 
 
 catch <- cat %>% 
-ggplot(aes(x = year, y = catch / 1000, colour = source)) +
+ggplot(aes(x = year, y = catch, colour = source)) +
   geom_line(linewidth = 1.2) +
   labs(
     x = "Return year",
-    y = "Catch (1000s)",
+    y = "Catch",
     colour = NULL
   ) +
   scale_colour_manual(
-    values = c("CYER" = "black", "FMI" = "grey70")
+    values = c("FMI"="black")
+    # values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
     breaks = seq(
       0,
-      max(recs$recruits, na.rm = TRUE) / 1000,
-      by = 1
+      max(recs$recruits, na.rm = TRUE),
+      by = 100
     )
   ) +
   scale_x_continuous(limits = c(2019, 2024)) +
@@ -157,8 +174,9 @@ smu_total <- smu_dat %>%
 spawn <- smu_total %>% ggplot(aes(x = Year, y = total_no_spawners/1000))+
   geom_line(color= "black", linewidth = 1.2)+
   labs(x = "Return year", y = "Spawner abundance (1000s)")+
-  scale_y_continuous(breaks = seq(0, max(smu_dat$no_spawners / 1000) + 5, by = 5))+
-  scale_x_continuous(limits = c(2010, 2025))+
+  scale_y_continuous(breaks = seq(0, max(smu_dat$no_spawners / 1000) + 20, by = 5))+
+  scale_x_continuous(limits = c(2008, 2024),
+                     breaks = seq(2008,2024, by =4))+
   theme_classic()
 print(spawn)
 
@@ -170,16 +188,18 @@ Code chunk to create the Spring 1.3 exploitation rate plot
 ```{r ER plot}
 
 ER <- ER_dat %>%
-  select(year, FMI, CYER) %>%
+  select(year,FMI) %>%
+  # select(year, FMI, CYER) %>%
   pivot_longer(
-    cols = c(FMI, CYER),
+    cols = c(FMI),
+    # cols = c(FMI, CYER),
     names_to = "source",
     values_to = "ER"
   ) %>%
   mutate(
     source = recode(
       source,
-      CYER = "CYER",
+      # CYER = "CYER",
       FMI  = "FMI"
     ))
 
@@ -192,36 +212,37 @@ ggplot(aes(x = year, y = ER, colour = source)) +
     colour = NULL
   ) +
   scale_colour_manual(
-    values = c("CYER" = "black", "FMI" = "grey70")
+    values = c("FMI" = "black")
+    # values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
     breaks = seq(
       0,
-      max(ER$ER, na.rm = TRUE) + 0.3,
+      max(ER$ER, na.rm = TRUE) + 0.5,
       by = 0.05
     )
   ) +
   scale_x_continuous(limits = c(2019, 2024)) +
-geom_hline(yintercept = 0.40, colour = "red",  linewidth = 0.8) +
-geom_text(
-  data = data.frame(x = 2024, y = 0.40),
-  aes(x = x, y = y, label = "U[MSY]"),
-  colour = "red",
-  hjust = 1.1,
-  vjust = -0.4,
-  size = 3.5,
-  parse = TRUE
-) +
-geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8) +
-geom_text(
-  data = data.frame(x = 2024, y = 0.10), # Insert finalized lower fishery reference point  
-  aes(x = x, y = y, label = "FRP-L"),
-  colour = "red",
-  hjust = 1.1,
-  vjust = -0.3,
-  size = 3.5,
-  parse = TRUE
-) +
+geom_hline(yintercept = 0.44, colour = "red",  linewidth = 0.8) +
+# geom_text(
+#   data = data.frame(x = 2024, y = 0.40),
+#   aes(x = x, y = y, label = "U[MSY]"),
+#   colour = "red",
+#   hjust = 1.1,
+#   vjust = 1.0,
+#   size = 3.5,
+#   parse = TRUE
+# ) +
+geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8, linetype = "dashed") +
+# geom_text(
+#   data = data.frame(x = 2024, y = 0.10), # Insert finalized lower fishery reference point  
+#   aes(x = x, y = y, label = "FRP-L"),
+#   colour = "red",
+#   hjust = 1.1,
+#   vjust = -0.3,
+#   size = 3.5,
+#   parse = TRUE
+# ) +
 theme_classic()
 print(ER)
 
@@ -238,7 +259,7 @@ four_plot <- plot_grid(catch, spawn, ER, recruit,
           label_x = 0.87)
 print(four_plot)
 
-ggsave(four_plot, height = 5, width = 6 , units = "in", filename = "4plotspring.png")
+ggsave(four_plot, height = 5, width = 10 , units = "in", filename = "4plotFSAR_spring.png")
 
 ```
 
@@ -257,80 +278,118 @@ ggsave(height = 3.5, width = 4.5, units = "in", filename = "surv.png")
 
 ```
 
-Code chunk to create the Nicola age proportions plot
+Code chunk to create the WSP Spawner Abundance by CU Plot
 ```{r surv plot}
+# Read data
+retro.summary.tbl <- wsp_cu_dat
+cu.info <- wsp_cu_lookup
+data.raw <- wsp_cu_years %>%
+  mutate(CU_ID = gsub("_","-",CU_ID)) %>%
+  filter(!is.na(CU_Name)) %>%
+  left_join(cu.info %>% select(CU_Name,Group), by="CU_Name")
 
-## Convert data-frame to long-form ##### 
+# ===============================
+# 1) Select CU group
+# ===============================
+cu_group_pattern <- "SP_1.3"
+cu_group_label   <- "SP_1.3"
 
-age_data <- age_data %>%
-  mutate(across(ends_with("percent"), ~ as.numeric(sub("%", "", .)) / 100))
+cu.panels <- cu.info %>%
+  filter(str_detect(CU_Name, cu_group_pattern)) %>%
+  pull(CU_ID_Alt2_CULookup) %>%
+  unique() %>%
+  sort()
 
+if(length(cu.panels) == 0) stop("No CUs found matching group!")
 
-# Pivot counts
-counts_long <- age_data %>%
-  pivot_longer(
-    cols = starts_with("age_") & !ends_with("percent"),
-    names_to = "age",
-    names_prefix = "age_",
-    values_to = "count"
-  )
+# Panel letters
+panel_labels <- paste0(LETTERS[1:length(cu.panels)], ")")
+cu_panel_map <- tibble(CU_ID_Alt2_CULookup = cu.panels,
+                       panel_label = panel_labels)
 
-# Pivot percents
-percents_long <- age_data %>%
-  pivot_longer(
-    cols = ends_with("percent"),
-    names_to = "age",
-    names_pattern = "age_(\\d+)_percent",
-    values_to = "percent"
-  )
+# ===============================
+# 2) Prepare data
+# ===============================
+plot_data <- data.raw %>%
+  filter(CU_ID %in% cu.info$CU_ID[cu.info$CU_ID_Alt2_CULookup %in% cu.panels]) %>%
+  select(CU_ID, Year, SpnForAbd_Wild) %>%
+  left_join(cu.info %>% select(CU_ID, CU_ID_Alt2_CULookup), by="CU_ID") %>%
+  left_join(cu_panel_map, by="CU_ID_Alt2_CULookup") %>%
+  rename(Natural_Spawners = SpnForAbd_Wild)
 
-# Join the two long-form datasets
-age_data_long <- left_join(counts_long, percents_long, by = c("BY", "age"))
+# ===============================
+# 3) Geometric mean function
+# ===============================
+calc_gmean <- function(x, n){
+  n <- n[1]
+  if(length(x) < n) return(rep(NA, length(x)))
+  exp(stats::filter(log(x), rep(1/n, n), sides = 1))
+}
 
-# Convert age to numeric
-age_data_long <- age_data_long %>%
-  mutate(age = as.numeric(age))
+# Add geometric mean
+avggen_lookup <- cu.info %>%
+  select(CU_ID_Alt2_CULookup, Avg_Gen)
 
-# Preview result
-print(age_data_long)
-### Change age to factor #### 
+plot_data <- plot_data %>%
+  left_join(avggen_lookup, by = "CU_ID_Alt2_CULookup") %>%
+  group_by(CU_ID_Alt2_CULookup) %>%
+  mutate(Geomean = calc_gmean(Natural_Spawners, Avg_Gen[1])) %>%
+  ungroup()
 
-age_data_long <- age_data_long %>%
-  mutate(age = as.factor(age)) 
+# Create full panel labels
+plot_data <- plot_data %>%
+  mutate(panel_label_full = paste0(panel_label, " ", CU_ID_Alt2_CULookup))
 
-
-#### Create Stacked Bar Plot #####
-
-pal <- gray.colors(3, start=0.1, end=0.9) #gray scale option
-# pal <- c("darkslategrey","azure4","azure3","azure1")
-#pal <- c("#88CCEE", "#CC6677", "#DDCC77")
-
-
-windows()
-
+# ===============================
+# 4) Generate individual plots
+# ===============================
+plot_list <- lapply(unique(plot_data$panel_label_full), function(panel_name){
+  df <- plot_data %>% filter(panel_label_full == panel_name)
   
-  age_data_long %>%
-    ggplot(aes(x= BY, y = percent, fill = age)) +
-    geom_bar(stat = "identity", position = "stack") +
-    labs(
-      x = "Brood Year",
-      y = "Proportion (Prefishery Abundance)",
-      fill = "Age"
-    ) +
-    scale_y_continuous(
-      breaks = seq(0, 1, by = 0.1),
-      expand = expansion(mult = c(0, 0.1))
-    ) +
-    scale_x_continuous(breaks = seq(1993, 2019, by = 1)) +
-    scale_fill_manual(values = pal) +
-    theme_classic() +
+  ggplot(df, aes(x = Year)) +
+    geom_point(aes(y = Natural_Spawners), color = "darkblue", size = 2) +
+    geom_line(aes(y = Natural_Spawners), color = "darkblue") +
+    geom_line(aes(y = Geomean), color = "red", size = 1.2) +
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = "Year", y = "Natural Spawner Abundance") +
+    ggtitle(panel_name) +
+    theme_bw(base_size = 12) +
     theme(
-      legend.position = "top",
-      axis.text.x = element_text(size = 10, angle = 45, hjust = 1, face = "bold"),
-      axis.text.y = element_text(size = 10, hjust = 1, face = "bold", vjust = 1)
+      plot.title = element_text(face = "bold", color = "darkblue", hjust = 0),
+      axis.text = element_text(size = 10),
+      axis.title = element_text(size = 12),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "gray90")
     )
-  
-  ggsave("Nicola_age_structure_prefishery_abundanceBY.png",plot = last_plot(), width = 7, height = 5, units = "in", dpi = 300)
+})
+
+# ===============================
+# 5) Arrange plots in a grid
+# ===============================
+n_panels <- length(plot_list)
+ncol_grid <- ceiling(sqrt(n_panels))
+nrow_grid <- ceiling(n_panels / ncol_grid)
+final_plot <- wrap_plots(plot_list, ncol = ncol_grid)
+
+print(final_plot)
+# ===============================
+# 6) Dynamic PNG size
+# ===============================
+panel_width  <- 3.8  # width per panel in inches
+panel_height <- 3.0  # height per panel in inches
+
+png_width  <- ncol_grid * panel_width
+png_height <- nrow_grid * panel_height
+
+# ===============================
+# 7) Save to PNG
+# ===============================
+ggsave(filename = paste0( cu_group_label, "_Natural_Spawner_Abundance_.png"),
+       plot = final_plot,
+       width = png_width,
+       height = png_height,
+       units = "in",
+       dpi = 300)
 
 ```
 
