@@ -14,8 +14,9 @@ library(cowplot)
 library(boot)
 library(ggpattern)
 
-nic_dat <- read.csv("SP_1.2//Data_in//nic_dat.csv")
-fit <- readRDS("SP_1.2//Results/fit.rds")
+#posterior data from CYER ~ FMI relationship
+ER_post <- readRDS("data\\fmi_cyer_posterior_predictions.rds") %>% 
+   filter(fmi %in% c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5))
 ```
 
 
@@ -23,12 +24,11 @@ This code chunk retrieves the simulation results from the folders and combines t
 ```{r, read in scenario outputs}
 
 #retrieving the basic simulation parameterization
-simPar <- read.csv("data\\samsim pars\\SimPars.csv")
-CUPar <- read.csv("data\\samsim pars\\CUPars.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
-fit <- readRDS("SP_1.2//Results/fit.rds")
-alpha_nu <- seq(from = 0.2, to = 1.35, by = 0.085)
+alpha_nu <- seq(0.36, 2.13, length.out = 10)
 
 #creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
@@ -57,8 +57,8 @@ for(k in 1:length(alpha_nu)){
       }
    hcrdat <- do.call(rbind,hcrDatalist)
    srdat<- do.call(rbind,srData)
-   hcrdat<-hcrdat[hcrdat$year>26,] #remove burn-in period
-   srdat<-srdat[srdat$year>26,]
+   hcrdat<-hcrdat[hcrdat$year>0,] #remove burn-in period
+   srdat<-srdat[srdat$year>0,]
    
    #hcrdat maybe not needed - has catch statistics though
    hcrdat=hcrdat[order(hcrdat$scenario,hcrdat$iteration,hcrdat$CU,hcrdat$year),]
@@ -72,61 +72,73 @@ sim_out <- bind_rows(srdat_aq, .id = "column_label")
 
 ```
 
-The raw simulation outputs (sim_out) are broken out at the individual population level. In the code chunk below, sim_out is summarized at the CU- and SMU-level, and then evaluated against:
+The raw simulation outputs (sim_out) are broken out at the individual CU level. In the code chunk below, sim_out is summarized at the CU- and SMU-level, and then evaluated against:
 
 1) CU-level lower benchmarks (20% Smax or 1500 spawners, whichever number is higher).
 2) CU-level quasi-extinction threshold (50 spawners).
-3) SMU-level Limit Reference Point, where both CUs need to be above Sgen or 1500 spawners (whichever is more for a given CU) for the SMU to be above the LRP.
+3) SMU-level Limit Reference Point, where both CUs need to be above 20% Smax or 1500 spawners (whichever is more for a given CU) for the SMU to be above the LRP.
 
-The success of each trial examines the probability of the geometric mean of the last generation of the simulation (4 years in this case) meeting the conditions laid out above.
-
-Lower Thompson 20% smax = 2662
-
-Bessette 20% Smax... small population with poor contrast in S-R data, so default to 1500 as the lower benchmark
-***77 fish is the calculated 20% smax***
+The success of each trial examines the probability of the geometric mean of the last generation of the simulation (5 years in this case) meeting the conditions laid out above.
 
 ```{r sim output summarization}
-#***need to use a QET at the CU level for the first plot - set to 50 spawners for now
+
+sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-04",
+                                             ifelse(CU == 2, "CK-08",
+                                                    ifelse(CU == 3, "CK-10",
+                                                           ifelse(CU == 4, "CK-12", "CK-18"))))) %>% 
+                                 dplyr::select(iteration, year, CU_ID, CU, scenario, spawners, beta, alpha, sigma) %>% 
+   mutate(targetER = as.numeric(substr(scenario, 3, nchar(scenario))))
 
 
-sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU %in% c(1:4), "lth", "bst"),
-                              wildSpawners = ifelse(wildSpawners < 0, 0, wildSpawners),
-                              hatcherySpawners = ifelse(hatcherySpawners < 0, 0, hatcherySpawners),
-                              return = ifelse(CU == 1, wildSpawners, spawners))
+#read in RDS with lower biological benchmarks (0.2 Smax)
+summ_smax0.2 <- readRDS("smax0.2.RDS")
 
-
-sim_sum_CU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
-   summarize(cu_return = sum(spawners)) %>% 
-   filter(year %in% c(35:38)) %>% 
-   group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
-   mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
-                           ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% 
-   group_by(CU_ID, alpha, targetER, scenario) %>%
+sim_sum_CU <- sim_sum %>%
+   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+   group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
+   mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
+                           ifelse(CU_ID == "CK-04" & geo_mean_gen < 1500, 0,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen >= 1500, 1,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen < 1500, 0,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen >= summ_smax0.2[[6,2]], 1,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen < summ_smax0.2[[6,2]], 0,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen >= summ_smax0.2[[8,2]], 1,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen < summ_smax0.2[[8,2]], 0,
+                           ifelse(CU_ID == "CK-18" & geo_mean_gen >= summ_smax0.2[[10,2]], 1, 0)))))))))) %>% 
+   group_by(CU_ID, CU, alpha, targetER, scenario) %>%
    summarize(p_fail = mean(cu_fail))
 
-#QET set to 50 fish for same life-history of Chinook in the Snake River Basin, so used that here
-sim_sum_CU_QET <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
-   summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(35:38)) %>% 
-   group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
-   mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 50, 1,
-                           ifelse(CU_ID == "bst" & geo_mean_gen < 50, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 50, 1, 0)))) %>% #need to change 2996 to 20% Smax
-   group_by(CU_ID, alpha, targetER, scenario) %>%
+#QET set to 50 fish for similar life-history of Chinook in the Snake River Basin, so used that here
+sim_sum_CU_QET <- sim_sum %>%
+   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+   group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
+   mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 50, 1,
+                           ifelse(CU_ID == "CK-04" & geo_mean_gen < 50, 0,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen >= 50, 1,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen < 50, 0,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen >= 50, 1,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen < 50, 0,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen >= 50, 1,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen < 50, 0,
+                           ifelse(CU_ID == "CK-18" & geo_mean_gen >= 50, 1, 0)))))))))) %>% 
+   group_by(CU_ID, CU, alpha, targetER, scenario) %>%
    summarize(p_fail = mean(cu_fail))
 
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
-sim_sum_SMU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration, year) %>% 
-   summarize(cu_return = sum(return)) %>% 
-   filter(year %in% c(35:38)) %>% 
-   group_by(CU_ID, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(cu_return)))) %>% 
-   mutate(cu_fail = ifelse(CU_ID == "bst" & geo_mean_gen >= 1500, 1,
-                           ifelse(CU_ID == "bst" & geo_mean_gen < 1500, 0,
-                                  ifelse(CU_ID == "lth" & geo_mean_gen >= 2662, 1, 0)))) %>% #need to change 2996 to 20% Smax
+sim_sum_SMU <- sim_sum %>% filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+   group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
+   mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
+                           ifelse(CU_ID == "CK-04" & geo_mean_gen < 1500, 0,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen >= 1500, 1,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen < 1500, 0,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen >= summ_smax0.2[[6,2]], 1,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen < summ_smax0.2[[6,2]], 0,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen >= summ_smax0.2[[8,2]], 1,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen < summ_smax0.2[[8,2]], 0,
+                           ifelse(CU_ID == "CK-18" & geo_mean_gen >= summ_smax0.2[[10,2]], 1, 0)))))))))) %>% 
    group_by(alpha, targetER, scenario, iteration) %>%
    summarize(smu_fail = ifelse(mean(cu_fail) < 1, 0, 1)) %>% 
    group_by(alpha, targetER, scenario) %>% 
@@ -135,10 +147,89 @@ sim_sum_SMU <- sim_sum %>% group_by(CU_ID, alpha, targetER, scenario, iteration,
 ```
 
 
-The following code chunks create icecream plots that illustrate the probability of exceeding the thresholds detailed above (1-3). Note that the upper x-axes on the plots are shown as z-scored logit-transformed smolt-to-age_3 survival index. The plots shown in the FSRR have had the z-scores replaced with the equivalent "real-space" survival index percentages (see last code chunk for translation of z-scored survival to "real-space" survival).
+The following code chunks create icecream plots that illustrate the probability of exceeding the thresholds detailed above (1-3). Note that the secondary y-axes are coded to show the equivalent FMI for a given CYER measure.
+
+This chunk defines a function for converting FMI to CYER which is used to calculate the secondary axes in the icecream plots.
+```{r ER transform}
+
+i_o = -1.54
+s_o = 0.400
+i_p = -1.28
+s_p = 0.0843
+
+FMI = seq(0, 1, by = 0.01)
+
+opti <- function(FMI){
+   CYER = inv.logit(FMI * s_o + i_o)
+   print(CYER)
+}
+
+df_opti <- data.frame(FMI, opti(FMI)) %>% 
+   dplyr::select(FMI, CYER = opti.FMI.)
+
+anns_opti <- df_opti[FMI %in% seq(0, 0.5, by = 0.05), ]
+
+pess <- function(targetER){
+   CYER = inv.logit(FMI * s_p + i_p)
+   print(CYER)
+}
+
+df_pess <- data.frame(FMI, pess(FMI)) %>% 
+   dplyr::select(FMI, CYER = pess.FMI.)
+
+anns_pess <- df_pess[FMI %in% seq(0, 0.5, by = 0.05), ]
+
+```
+
+Illustrating the CYER FMI relationship in the optimistic and pessimistic scenarios
+```{r freq dist plot of FMI vs CYER}
+
+#pessimistic scenario
+med_pess <- ER_post %>% filter(model == "state space - 0.3 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+pess_plot <- ER_post %>% filter(model == "state space - 0.3 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_pess, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   labs(x = NULL, y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(0.9, 0.80),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+#optimistic scenario
+med_opti <- ER_post %>% filter(model == "state space - 0.1 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+opti_plot <- ER_post %>% filter(model == "state space - 0.1 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_opti, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   labs(x = NULL, y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(0.9, 0.80),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+
+
+
+```
+
+
+
 ```{r sim results vis CU sum}
 
-Ccols <- c("Very Low (0.00-0.04)" = "mediumpurple4",
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
            "Moderately Low (0.25-0.49)" = "#f1b6da", 
            "Moderately High (0.50-0.74)" = "#f7f7f7",
@@ -146,104 +237,34 @@ Ccols <- c("Very Low (0.00-0.04)" = "mediumpurple4",
            "Very High (0.95-1.00)" = "#4dac26")
 
 #p(CU above LBM)
-p1 <- sim_sum_CU %>% filter(CU_ID == "bst")  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+CU_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- sim_sum_CU %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
                                                                ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
-                                                                      "Very High (0.95-1.00)")))))) %>% 
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-04",
+                                           ifelse(CU_ID == 2, "CK-08",
+                                                  ifelse(CU_ID == 3, "CK-10",
+                                                         ifelse(CU_ID == 4, "CK-12", "CK-18"))))) %>% 
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
-   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
                      name = "P(Conservation Unit\n> 1500 or 20% Smax)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
-                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt survival index (%)",
-                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
-                      name = "Productivity [ln(α)]", expand = c(0,0),
-                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
-                      limits = c(0.1575, 1.35))+
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
+   scale_x_continuous(expand = c(0,0))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.3, by = 0.05))+
-   # theme(legend.text = element_text(size = 10),
-   #      legend.title = element_text(size = 13)) +
-   # guides(fill = guide_legend(ncol = 1), title.position = "top") +
-   labs(y = "Canadian exploitation rate", 
-        x = "Productivity [ln(alpha)]") + 
-   theme_classic()+
-    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
-
-#p(CU above LBM)
-p1.5 <- sim_sum_CU %>% filter(CU_ID == "lth") %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
-                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
-                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
-                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
-                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
-                                                                      "Very High (0.95-1.00)")))))) %>% 
-   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
-   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
-   scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> 1500 or 20% Smax)",
-                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
-                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
-                     drop = F,
-                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
-                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt survival index (%)",
-                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
-                      name = "Productivity [ln(α)]", expand = c(0,0),
-                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
-                      limits = c(0.1575, 1.35))+
-   scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.3, by = 0.05))+
-   # theme(legend.text = element_text(size = 10),
-   #      legend.title = element_text(size = 13)) +
-   # guides(fill = guide_legend(ncol = 1), title.position = "top") +
-   labs(y = "Canadian exploitation rate", 
-        x = "Productivity [ln(alpha)]") + 
-   theme_classic()+
-    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
-
-
-#frequency of survival rates
-surv <- as.data.frame(logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
-   sd(logit(nic_dat$smolt_age3_survival))
-
-names(surv)[1] <- "std_surv"
-surv$type <- ""
-
-s_plot <- surv %>% ggplot(aes(x = std_surv))+
-   geom_histogram(aes(x = std_surv), fill = "gray30", colour = "grey30")+
-   scale_x_continuous(limits = c(-1.472903, 1.584789),
-                      breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
-                      expand = c(0,0))+
-   labs(x = "Observed smolt survival index (%)", y = "Occurrences (n)")+
+                      breaks = seq(0, 0.45, by = 0.05))+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
    theme_classic()
+}
 
 get_legend <- function(plot, legend = NULL) {
   
@@ -269,132 +290,95 @@ get_legend <- function(plot, legend = NULL) {
   return(NULL)
 }
 
-legend1 = get_legend(p1)
-p1 <- p1 + theme(legend.position='none')
-p1.5 <- p1.5 + theme(legend.position='none')
-s_plot <- s_plot + theme(legend.position='none')
+legend1 = get_legend(CU_plot[[1]])
 
-CU <- ggdraw(plot_grid(p1, p1.5, s_plot, ncol = 1, axis = c("l"), align = "v", rel_heights = c(1, 1, 0.3), 
-                       labels = c("A", "B", "C"),
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- CU_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = if(i %in% c(2,4)){
+            element_blank()
+         } else{
+            element_text(colour = "black")},
+         axis.title.y = if(i %in% c(2,4)){
+            element_blank()
+         } else{
+            element_text(colour = "black")},
+         plot.margin = if(i %in% c(2,4)){
+            margin(r = 0)
+         } else{
+            margin()})
+}
+
+CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], opti_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()),
+                       CU_plot[[3]], CU_plot[[4]], opti_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()),
+                       CU_plot[[5]], opti_plot + theme(axis.text.y = element_blank(),
+                                                                     axis.title.y = element_blank()), legend1,
+                       #rel_widths = c(1, 1, 1, 1, 1, .2),
+                       ncol = 3, nrow = 3, axis = c("l"), align = c("hv"),
+                       labels = c("CK-04", "CK-08", "", "CK-10", "CK-12", "", "CK-18", ""),
                        label_size = 12,
-                       label_x = 0.9, label_y = 0.87))
-CU_plot <- cowplot::plot_grid(CU,legend1,rel_widths = c(1, 0.6, 0.25))
+                       label_x = 0.55, label_y = 0.9))
 
-ggsave(CU_plot, height = 7.5, width = 5.3, units = "in", filename = "sim_sum_CU.pdf")
+CU_plot <- cowplot::plot_grid(CU)
 
-
-
+ggsave(CU_plot, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
 
 ```
 
 
 ```{r sim results vis CU QET}
 
-Ccols <- c("Very Low (0.00-0.04)" = "mediumpurple4",
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
            "Moderately Low (0.25-0.49)" = "#f1b6da", 
            "Moderately High (0.50-0.74)" = "#f7f7f7",
            "High (0.75-0.94)" = "#b8e186",
            "Very High (0.95-1.00)" = "#4dac26")
 
-#p(CU above QET)
-p2 <- sim_sum_CU_QET %>% filter(CU_ID == "bst")  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+#p(CU above LBM)
+QET_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
                                                                ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
-                                                                      "Very High (0.95-1.00)")))))) %>% 
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-04",
+                                           ifelse(CU_ID == 2, "CK-08",
+                                                  ifelse(CU_ID == 3, "CK-10",
+                                                         ifelse(CU_ID == 4, "CK-12", "CK-18"))))) %>% 
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
-   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit >\nQuasi-Extinction Threshold)",
+                     name = "P(Conservation Unit\n> Quasi-Extinction Threshold)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt survival index (%)",
-                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
-                      name = "Productivity [ln(α)]", expand = c(0,0),
-                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
-                      limits = c(0.1575, 1.35))+
+   scale_x_continuous(expand = c(0,0))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.3, by = 0.05))+
-   theme(legend.position = "top", legend.text = element_text(size = 10),
-        legend.title = element_text(size = 13)) +
-   guides(fill = guide_legend(ncol = 1), title.position = "top") +
-   labs(y = "Canadian exploitation rate", 
-        x = "Productivity [ln(alpha)]") + 
-   theme_classic()+
-    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
-
-p2.5 <- sim_sum_CU_QET %>% filter(CU_ID == "lth") %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
-                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
-                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
-                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
-                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
-                                                                      "Very High (0.95-1.00)")))))) %>% 
-   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
-   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
-   scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit >\nQuasi-Extinction Threshold)",
-                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
-                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
-                     drop = F,
-                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
-                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt survival index (%)",
-                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
-                      name = "Productivity [ln(α)]", expand = c(0,0),
-                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
-                      limits = c(0.1575, 1.35))+
-   scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.3, by = 0.05))+
-   theme(legend.position = "top", legend.text = element_text(size = 10),
-        legend.title = element_text(size = 13)) +
-   guides(fill = guide_legend(ncol = 1), title.position = "top") +
-   labs(y = "Canadian exploitation rate", 
-        x = "Productivity [ln(alpha)]") + 
-   theme_classic()+
-    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
-
-
-#frequency of survival rates
-surv <- as.data.frame(logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
-   sd(logit(nic_dat$smolt_age3_survival))
-
-names(surv)[1] <- "std_surv"
-surv$type <- ""
-
-s_plot <- surv %>% ggplot(aes(x = std_surv))+
-   geom_histogram(aes(x = std_surv), fill = "gray30", colour = "grey30")+
-   scale_x_continuous(limits = c(-1.472903, 1.584789),
-                      breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
-                      expand = c(0,0))+
-   labs(x = "Observed smolt survival index (%)", y = "Occurrences (n)")+
-   theme_classic()
+                      breaks = seq(0, 0.45, by = 0.05))+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic()#+
+   
+   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
+   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
+   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+}
 
 get_legend <- function(plot, legend = NULL) {
   
@@ -420,33 +404,45 @@ get_legend <- function(plot, legend = NULL) {
   return(NULL)
 }
 
-legend2 = get_legend(p2)
-p2 <- p2 + theme(legend.position='none')
-p2.5 <- p2.5 + theme(legend.position='none')
-s_plot <- s_plot + theme(legend.position='none')
+legend1 = get_legend(QET_plot[[1]])
 
-CU_QET <- ggdraw(plot_grid(p2, p2.5, s_plot, ncol = 1, axis = c("l"), align = "v", rel_heights = c(1, 1, 0.3), 
-                       labels = c("A", "B", "C"),
+QET_plot[[1]] <- QET_plot[[1]] + 
+   theme(legend.position='none')
+QET_plot[[2]] <- QET_plot[[2]] + 
+   theme(legend.position='none')
+QET_plot[[3]] <- QET_plot[[3]]  + 
+   theme(legend.position='none')
+QET_plot[[4]] <- QET_plot[[4]] + 
+   theme(legend.position='none')
+QET_plot[[5]] <- QET_plot[[5]] + 
+   theme(legend.position='none')
+
+
+QET <- ggdraw(plot_grid(QET_plot[[1]], QET_plot[[2]], QET_plot[[3]], QET_plot[[4]], QET_plot[[5]], legend1,
+                       rel_widths = c(1, 1, 1, 1, 1, .2),
+                       ncol = 2, nrow = 3, axis = c("l"), align = c("hv"),
+                       labels = c("CK-04", "CK-08", "CK-10", "CK-12", "CK-18"),
                        label_size = 12,
-                       label_x = 0.9, label_y = 0.87))
-QET_plot <- cowplot::plot_grid(CU_QET,legend2,rel_widths = c(1, 0.6, 0.25))
+                       label_x = 0.55, label_y = 0.9))
 
-ggsave(QET_plot, height = 7.5, width = 5.3, units = "in", filename = "sim_sum_CU_QET.pdf")
+QET_plot <- cowplot::plot_grid(QET)
+
+ggsave(QET_plot, height = 7.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_QET.pdf")
 
 ```
 
 
 ```{r sim results vis SMU sum}
 
-Ccols <- c("Very Low (0.00-0.04)" = "mediumpurple4",
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
            "Moderately Low (0.25-0.49)" = "#f1b6da", 
            "Moderately High (0.50-0.74)" = "#f7f7f7",
            "High (0.75-0.94)" = "#b8e186",
            "Very High (0.95-1.00)" = "#4dac26")
 
-#p(SMU above LBM)
-p3 <- sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+#p(SMU > LRP)
+SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
@@ -461,95 +457,66 @@ p3 <- sim_sum_SMU %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(sec.axis = sec_axis(~ (. - quantile(unlist(as.vector(extract(fit)[2])), probs = c(0.5))) / 0.39, 
-                                          name = "Smolt survival index (%)",
-                                          breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2)),
-                      name = "Productivity [ln(α)]", expand = c(0,0),
-                      breaks = c(0.2, 0.4, 0.6, 0.8, 1, 1.2),
-                      limits = c(0.1575, 1.35))+
+   scale_x_continuous(expand = c(0,0))+
    scale_y_continuous(expand = c(0,0),
-                      breaks = seq(0, 0.3, by = 0.05))+
-   theme(legend.position = "top", legend.text = element_text(size = 10),
-        legend.title = element_text(size = 13)) +
-   guides(fill = guide_legend(ncol = 1), title.position = "top") +
-   labs(y = "Canadian exploitation rate", 
-        x = "Productivity [log(alpha)]") + 
-   theme_classic()+
-    geom_segment(aes(x = 0.1575, y = 0.05, xend = 0.78, yend = 0.05),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.167, xend = 0.78, yend = 0.167),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.1575, y = 0.119, xend = 0.78, yend = 0.119),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-    geom_segment(aes(x = 0.78, y = 0.167, xend = 0.78, yend = 0),
-                colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+                      breaks = seq(0, 0.45, by = 0.05))+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic()#+
 
-#frequency of survival rates
-surv <- as.data.frame(logit(nic_dat$smolt_age3_survival) - mean(logit(nic_dat$smolt_age3_survival))) /
-   sd(logit(nic_dat$smolt_age3_survival))
+   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
+   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
+   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
+   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
+   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
+   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
+   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
 
-names(surv)[1] <- "std_surv"
-surv$type <- ""
+ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_SMU.pdf")
 
-s_plot <- surv %>% ggplot(aes(x = std_surv))+
-   geom_histogram(aes(x = std_surv), fill = "gray30", colour = "grey30")+
-   scale_x_continuous(limits = c(-1.472903, 1.584789),
-                      breaks = c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
-                      expand = c(0,0))+
-   labs(x = "Observed smolt survival index (%)", y = "Occurrences (n)")+
+```
+
+
+```{r freq dist plot of FMI vs CYER}
+
+#pessimistic scenario
+med_pess <- ER_post %>% filter(model == "state space - 0.3 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
+
+ER_post %>% filter(model == "state space - 0.3 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.5),
+                      expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_pess, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
    theme_classic()
 
-get_legend <- function(plot, legend = NULL) {
-  
-  gt <- ggplotGrob(plot)
-  
-  pattern <- "guide-box"
-  if (!is.null(legend)) {
-    pattern <- paste0(pattern, "-", legend)
-  }
-  
-  indices <- grep(pattern, gt$layout$name)
+#optimistic scenario
+med_opti <- ER_post %>% filter(model == "state space - 0.1 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer))
 
-  not_empty <- !vapply(
-    gt$grobs[indices], 
-    inherits, what = "zeroGrob", 
-    FUN.VALUE = logical(1)
-  )
-  indices <- indices[not_empty]
-  
-  if (length(indices) > 0) {
-    return(gt$grobs[[indices[1]]])
-  }
-  return(NULL)
-}
+ER_post %>% filter(model == "state space - 0.1 CV") %>% ggplot()+
+   geom_density(aes(x = cyer, fill = as.factor(fmi)), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.5),
+                      expand = c(0,0),
+                      breaks = seq(0, 0.45, by = 0.05))+
+   scale_y_continuous(expand = c(0,0))+
+   scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_opti, aes(xintercept = med_cyer, colour = as.factor(fmi)))+
+   theme_classic()
 
-legend3 = get_legend(p3)
-p3 <- p3 + theme(legend.position='none')
-s_plot <- s_plot + theme(legend.position='none')
 
-SMU_plot <- ggdraw(plot_grid(p3, s_plot, ncol = 1, axis = c("l"), align = "v", rel_heights = c(1, 0.3), 
-                       labels = c("A", "B"),
-                       label_size = 12,
-                       label_x = 0.9, label_y = 0.87))
-plot_SMU <- cowplot::plot_grid(SMU_plot,legend3,rel_widths = c(1, 0.6, 0.25))
 
-ggsave(plot_SMU, height = 4.5, width = 5.3, units = "in", filename = "sim_sum_SMU.pdf")
+
 ```
 
-
-Code chunk for going back and forth between real space and transformed space for smolt-to-age_3 recruit survival.
-```{r survival transform}
-
-#logit-transformed and standardized range of smolt survival
-ss <- c(-1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2)
-
-ss <- c(-2.1935084, -1.7301351, -1.2708537, -0.7700096,  0.9455846,  1.0967433,  1.1587859,  1.3693443)
-
-#translating back to "real space"
-inv.logit(ss * sd(logit(nic_dat$smolt_age3_survival)) + mean(logit(nic_dat$smolt_age3_survival)))
-
-```
 

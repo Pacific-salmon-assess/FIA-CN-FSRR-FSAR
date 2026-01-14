@@ -1,0 +1,93 @@
+---
+title: "Icecream plot code"
+author: "Colin Bailey"
+date: "2026-01-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(cowplot)
+library(boot)
+library(ggpattern)
+```
+
+
+```{r example data}
+#Please adjust the data inputs to values that are relevant to SEP... you could potentially change the ranges in abundances of smolts and spawners to vary on the log-scale instead
+
+spawn <- seq(10, 20000, by = 200)
+smolt <- seq(1000, 1000000, by = 10000)
+
+#can expand this code chunk to include calculations for fry survival
+phos_df <- expand.grid(x=spawn, y=smolt) %>% 
+  dplyr::select(spawn = x, smolt = y) %>% 
+  mutate(l_h_spawn = smolt * 0.005, #0.005 is a placeholder for the lowest Chilko smolt survival
+         u_h_spawn = smolt * 0.05, #0.05 is a placeholder for the highest Chilko smolt survival
+         l_phos = l_h_spawn / spawn,
+         u_phos = u_h_spawn / spawn)
+```
+
+Currently set up the section below to make 2 plots for a given lifestage (example is smolts) - one for the lowest potential PHOS, and a second for the highest potential PHOS.THis may make more sense than creating broad probability categories that span the range of survival rates if the rates spawn an order of magnitude. Alternatively, it may make more sense to just report the maximum potential PHOS because we all know that survival can go to zero for a variety of reasons. 
+```{r icecream plot}
+
+#can update these categories to meaningful text and PHOS ranges for SEP
+Ccols <- c("Very Low (0.00-0.04)" = "mediumpurple4",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+#lower phos - note that whatever tweaks you have made to the categories in Ccols needs to be made here as well in this ifelse section
+p_l_phos <- phos_df %>%  mutate(l_phos = ifelse(l_phos <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(l_phos > 0.04 & l_phos <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(l_phos > 0.24 & l_phos <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(l_phos > 0.49 & l_phos <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(l_phos > 0.74 & l_phos <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = smolt, y = spawn, z = l_phos, fill = l_phos))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "PHOS",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = seq(1000, 1000000, by = 10000))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = seq(10, 20000, by = 200))+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Smolt Release Abundance") + 
+   theme_classic()
+
+#upper phos - note that whatever tweaks you have made to the categories in Ccols needs to be made here as well in this ifelse section
+p_u_phos <- phos_df %>%  mutate(u_phos = ifelse(u_phos <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(u_phos > 0.04 & u_phos <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(u_phos > 0.24 & u_phos <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(u_phos > 0.49 & u_phos <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(u_phos > 0.74 & u_phos <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = smolt, y = spawn, z = u_phos, fill = u_phos))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "PHOS",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = seq(1000, 1000000, by = 10000))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = seq(10, 20000, by = 200))+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Smolt Release Abundance") + 
+   theme_classic()
+
+```

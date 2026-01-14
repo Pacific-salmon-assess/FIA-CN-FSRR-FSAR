@@ -1,11 +1,13 @@
 ## FMI and CWT-based CYER Comparison
 # Goal: Predict total exploitation rate as a function of FMI (based on GSI
 # sampling of marine fisheries + run recronstruction catch estimates)
-# 1) Calculate Canadian and total CYER exploitation rates; available as marked
-# and unmarked, since FMI is not stratified take mean for CYER
+# 1) Use raw ERA outputs to calculate total Canadian CYER; take average from 
+# marked vs unmarked fisheries
 # 2) Calculate mean proportion of ER associated with US harvest since 2009
-# Sep. 10, 2024
+# Jan 7, 2026
 
+# NOTE ORIGINAL VERSION USED PUBLISHED MORTALITY TABLES, replaced with raw ERA 
+# outputs to accommodate missing 2024 and CKO data
 
 library(tidyverse)
 library(readxl)
@@ -16,318 +18,58 @@ names(ind_pal) <- c("CHI", "HAR", "MSH", "SHU", "NIC", "CKO")
 
 ## CLEAN CYER DATA -------------------------------------------------------------
 
-# sheet_names <- excel_sheets(
-#   here::here(
-#     "data", "ctc", 
-#     "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
-#   ))
-# 
-# stocks <- c("BQR", "CHI", "COW", "HAR", "MSH", "NIC", "PHI", "QUI",
-#             "EVIN", "RBT", "NWVI", "SWVI", "SHU")
-# matching_sheets <- sheet_names[
-#   sapply(sheet_names, function(x) any(grepl(paste(stocks, collapse = "|"), x)))
-#   ]
-# matching_sheets2 <- matching_sheets[
-#   sapply(matching_sheets, function(x) any(grepl("TM", x)))
-# ]
-# sheet_ids <- which(sheet_names %in% matching_sheets2)
-# 
-# 
-# # CWT based CYERs from Laura Tessier
-# # identify sheets w/ relevant data and associated stock name
-# new_col_names <- c(
-#   "year", "cwt_n", "ages", "aabm_seak_t", "aabm_seak_n", "aabm_seak_s", 
-#   "aabm_nbc_t", "aabm_nbc_s", "aabm_wcvi_t", "aabm_wcvi_s", "isbm_nbc_t", 
-#   "isbm_nbc_n", "isbm_nbc_s", "isbm_sbc_t", "isbm_sbc_n", "isbm_sbc_s", 
-#   "isbm_n_falcon_t", "isbm_n_falcon_s", "isbm_s_falcon_t", "isbm_s_falcon_s", 
-#   "isbm_wac_n", "isbm_puget_n", "isbm_puget_s", "term_seak_t", "term_seak_n",
-#   "term_seak_s", "term_can_n", "term_can_s", "term_sus_t", "term_sus_n", 
-#   "term_sus_s", "stray", "esc", "comment"
-# ) 
-# 
-# cwt_dat <- purrr::map2(
-#   sheet_ids, matching_sheets2, 
-#   function(x, y) {
-#     dum <- read_xlsx(
-#       here::here(
-#         "data", "ctc", 
-#         "TCCHINOOK-25-01-Appendix-C-Mortality-Distribution-Tables-Detailed.xlsx"
-#       ),
-#       sheet = x,
-#       skip = 6,
-#       col_names = FALSE
-#     )
-#     colnames(dum) <- new_col_names
-#     dum %>% 
-#       mutate(
-#         indicator = str_split(y, " ") %>% unlist() %>% .[1],
-#         mark = str_split(y, " ") %>% unlist() %>% .[2]
-#       ) %>% 
-#       # remove five year averages at bottom of table
-#       filter(!grepl("-", year))
-#   }
-# ) %>% 
-#   bind_rows()
-# 
-# # southern US harvest not available for 2023; calculate mean values 2016-22 for
-# # each fishery, add to original dataset for 23 then rescale
-# cwt_dat_long <- cwt_dat %>% 
-#   filter(comment == "ok",
-#          # focus only on unmarked given stocks of interest
-#          mark == "unmarked") %>% 
-#   pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
-#                         starts_with("term"), stray, esc),
-#                names_to = "strata", values_to = "percent_run") %>% 
-#   mutate(
-#     year = as.numeric(year),
-#     southern_us = ifelse(
-#       (grepl("falcon", strata) | grepl("_sus_", strata) | 
-#          grepl("puget", strata) | grepl("wac", strata)),
-#       TRUE,
-#       FALSE
-#     ),
-#     canadian_er = ifelse(
-#       (grepl("nbc", strata) | grepl("sbc", strata) | 
-#          grepl("wcvi", strata) | grepl("term_can", strata)),
-#       TRUE,
-#       FALSE
-#     ),
-#     missing_from_fmi = ifelse(
-#       strata %in% c("isbm_nbc_t", "isbm_nbc_n", "isbm_sbc_t", "isbm_sbc_n",
-#                     "term_can_n"),
-#       TRUE,
-#       FALSE
-#     )
-#   ) 
-# 
-# # calculate mean southern US exploitation rate to use since 2023 values 
-# # unavailable
-# mean_sus <- cwt_dat_long %>% 
-#   filter(year > 2015 & year < 2023) %>% 
-#   group_by(strata, indicator) %>% 
-#   summarize(mean_percent_run = mean(percent_run))
-# 
-# 
-# cwt_dat_long2 <- left_join(cwt_dat_long, mean_sus, 
-#                            by = c("indicator", "strata")) %>% 
-#   mutate(
-#     percent_run = ifelse(year == "2023" & southern_us == TRUE,
-#                          mean_percent_run,
-#                          percent_run),
-#     smu = case_when(
-#       indicator == "NIC" ~ "spring_1.2",
-#       indicator %in% c("SHU", "MSH") ~ "summer_0.3",
-#       indicator %in% c("CHI", "HAR") ~ "fall_0.3",
-#       TRUE ~ NA_character_
-#     )
-#   ) %>% 
-#   filter(
-#     !is.na(smu)
-#   ) %>% 
-#   group_by(
-#     indicator, year
-#   ) %>% 
-#   mutate(
-#     total_percent = sum(percent_run)
-#   ) %>% 
-#   ungroup() %>% 
-#   mutate(
-#     scaled_percent = percent_run / total_percent
-#   )
-
-
-sheet_names <- excel_sheets(
+# CTC fishery names key
+fishery_key <- read.csv(
   here::here(
-    "data", "ctc",
-    "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-unmarked_noTBRSEAK.xlsx"
-  ))
-# restrict to FR stocks
-stocks <- c("CHI", "HAR", "MSH", "NIC", "SHU")
-
-matching_sheets <- sheet_names[
-  sapply(sheet_names, function(x) any(grepl(paste(stocks, collapse = "|"), x)))
-]
-matching_sheets2 <- matching_sheets[
-  sapply(matching_sheets, function(x) any(grepl("total mort", x)))
-]
-sheet_ids <- which(sheet_names %in% matching_sheets2)
-
-# identify sheets w/ relevant data and associated stock name
-new_col_names <- c(
-  "year", "cwt_n", "ages", "aabm_seak_t", "aabm_seak_n", "aabm_seak_s",
-  "aabm_nbc_t", "aabm_nbc_s", "aabm_wcvi_t", "aabm_wcvi_s", "isbm_nbc_t",
-  "isbm_nbc_n", "isbm_nbc_s", "isbm_sbc_t", "isbm_sbc_n", "isbm_sbc_s",
-  "isbm_n_falcon_t", "isbm_n_falcon_s", "isbm_s_falcon_t", "isbm_s_falcon_s",
-  "isbm_wac_n", "isbm_puget_n", "isbm_puget_s", "term_seak_t", "term_seak_n",
-  "term_seak_s", "term_can_n", "term_can_s", "term_sus_t", "term_sus_n",
-  "term_sus_s", "stray", "esc", "comment"
-)
-cwt_dat_unmarked <- purrr::map2(
-  sheet_ids, matching_sheets2,
-  function(x, y) {
-    dum <- read_xlsx(
-      here::here(
-        "data", "ctc",
-        "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-unmarked_noTBRSEAK.xlsx"
-      ),
-      sheet = x,
-      skip = 6,
-      col_names = FALSE
-    )
-    colnames(dum) <- new_col_names
-    dum %>%
-      mutate(
-        indicator = str_split(y, " ") %>% unlist() %>% .[1],
-        mark = "unmarked"
-      ) %>%
-      # remove five year averages at bottom of table
-      filter(!grepl("-", year),
-             ! year == "2024")
-  }
-) %>%
-  bind_rows()
-
-cwt_dat_marked <- purrr::map2(
-  sheet_ids, matching_sheets2,
-  function(x, y) {
-    dum <- read_xlsx(
-      here::here(
-        "data", "ctc",
-        "TCCHINOOK-25-XX-Appendix-C-Mortality-Distribution-Tables-Detailed-marked_noTBRSEAK.xlsx"
-      ),
-      sheet = x,
-      skip = 6,
-      col_names = FALSE
-    )
-    colnames(dum) <- new_col_names
-    dum %>%
-      mutate(
-        indicator = str_split(y, " ") %>% unlist() %>% .[1],
-        mark = "marked"
-      ) %>%
-      # remove five year averages at bottom of table
-      filter(!grepl("-", year),
-             ! year == "2024")
-  }
-) %>%
-  bind_rows()
-
-cwt_dat_long <- rbind(cwt_dat_unmarked, cwt_dat_marked) %>%
-  filter(comment == "ok") %>%
-  mutate(stock = indicator,
-         indicator = paste(indicator, mark, sep = "_")) %>%
-  pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
-                        starts_with("term"), stray, esc),
-               names_to = "strata", values_to = "percent_run") %>%
-  mutate(
-    year = as.numeric(year),
-    canadian_er = ifelse(
-      (grepl("nbc", strata) | grepl("sbc", strata) |
-         grepl("wcvi", strata) | grepl("term_can", strata)),
-      TRUE,
-      FALSE
-    )
-  )
-
-cwt_dat_long2 <- cwt_dat_long %>%
-  group_by(
-    stock, indicator, year
-  ) %>%
-  mutate(
-    total_percent = sum(percent_run)
-  ) %>%
-  ungroup() %>%
-  mutate(
-    scaled_percent = percent_run / total_percent
-  )
-
-
-## import Chilko data generated by CW and NS
-cko_marked <- read.csv(
-  here::here(
-    "data", "ctc", "cmz_CKO_marked_dec_2025.csv"
+    "data", "ctc", "CTCFisheryDefinitions.csv"
   )
 ) %>% 
   janitor::clean_names() %>% 
-  mutate(
-    mark = "marked"
-  )
-cko_unmarked <- read.csv(
+  select(country, fishery_type, era_fishery_name) %>% 
+  distinct()
+
+dat_unmrk <- read.csv(
   here::here(
-    "data", "ctc", "cmz_CKO_marked_dec_2025.csv"
+    "data", "ctc", "cyer_FRSR_unmarked_dec_2025.csv"
   )
 ) %>% 
   janitor::clean_names() %>% 
+  rename(era_fishery_name = fishery_group) %>% 
+  left_join(., fishery_key, by = "era_fishery_name") %>% 
+  # remove empty rows
+  filter(!is.na(era_fishery_name)) %>%
   mutate(
-    mark = "unmarked"
-  )
-cko_long <- rbind(cko_marked, cko_unmarked) %>% 
-  filter(criteria == "ok") %>%
-  mutate(indicator = paste(stock, mark, sep = "_")) %>%
-  pivot_longer(cols = c(starts_with("aabm"), starts_with("isbm"),
-                        starts_with("term"), stray, escap),
-               names_to = "strata", values_to = "percent_run") %>%
-  mutate(
-    year = as.numeric(catch_year),
-    canadian_er = ifelse(
-      grepl("canada", strata) | grepl("term", strata),
-      TRUE,
-      FALSE
-    )
-  ) 
-
-cko_long2 <- cko_long %>%
-  group_by(
-    stock, indicator, year
-  ) %>%
-  mutate(
-    total_percent = sum(percent_run)
-  ) %>%
-  ungroup() %>%
-  mutate(
-    scaled_percent = percent_run / total_percent
+    mark = "unmark"
   )
 
-
-
-# calculate Canadian exploitation rate
-can_cyer <- rbind(
-  cwt_dat_long2 %>% 
-    select(indicator, year, canadian_er, scaled_percent),
-  cko_long2 %>% 
-    select(indicator, year, canadian_er, scaled_percent)
-  ) %>% 
-  filter(canadian_er == TRUE) %>% 
-  group_by(
-    indicator, year 
-  ) %>% 
-  summarize(
-    can_er = sum(scaled_percent)
+dat_mrk <- read.csv(
+  here::here(
+    "data", "ctc", "cyer_FRSR_marked_dec_2025.csv"
   )
-
-
-#combine stray and escapement, then use to calculate total exploitation
-cyer_dat <- rbind(
-  cwt_dat_long2 %>% 
-    select(stock, indicator, year, strata, canadian_er, scaled_percent),
-  cko_long2 %>% 
-    select(stock, indicator, year, strata, canadian_er, scaled_percent)
 ) %>% 
-  filter(strata %in% c("esc", "stray", "escap")) %>% 
-  group_by(stock, year, indicator) %>% 
+  janitor::clean_names() %>% 
+  rename(era_fishery_name = fishery_group) %>% 
+  left_join(., fishery_key, by = "era_fishery_name") %>% 
+  # remove empty rows
+  filter(!is.na(era_fishery_name)) %>%
+  mutate(
+    mark = "mark"
+  )
+
+cyer_dat1 <- rbind(dat_mrk, dat_unmrk) %>% 
+  filter(!era_fishery_name %in% c("XCA ESC STRAY", "XUS ESC STRAY")) %>% 
+  group_by(cy, stock_code, mark) %>% 
+  mutate(
+    total_er = sum(fishery_group_er)
+  ) %>% 
+  group_by(cy, stock_code, mark, country, total_er) %>% 
   summarize(
-    percent_escaped = sum(scaled_percent)
+    country_er = sum(fishery_group_er)
   ) %>% 
-  ungroup() %>% 
+  rename(
+    year = cy, indicator = stock_code
+  ) %>% 
   mutate(
-    total_er = 1 - percent_escaped
-  ) %>% 
-  select(
-    stock, indicator, year, total_er
-  ) %>% 
-  left_join(., can_cyer, by = c("year", "indicator")) %>% 
-  mutate(
-    us_er = total_er - can_er,
     smu = case_when(
       grepl("NIC", indicator) ~ "spring_1.2",
       grepl("CKO", indicator) ~ "summer_1.3",
@@ -335,107 +77,97 @@ cyer_dat <- rbind(
       grepl("CHI", indicator) |  grepl("HAR", indicator) ~ "fall_0.3",
       TRUE ~ NA_character_
     )
+  )
+
+cyer_dat <- cyer_dat1 %>% 
+  filter(
+    country == "Canada"
   ) %>% 
-  group_by(
-    stock, year, smu
-  ) %>% 
+  group_by(year, indicator, smu) %>% 
   summarize(
-    total_er = mean(total_er),
-    can_er = mean(can_er),
-    us_er = mean(us_er)
+    can_cyer = mean(country_er)
   ) %>% 
-  ungroup
+  ungroup()
   
-
-
-cyer_ts <- ggplot(cyer_dat) + 
-  geom_point(aes(x = year, y= can_er)) + 
-  geom_point(aes(x = year, y= total_er), color = "red") + 
-  facet_wrap(~stock) +
-  ggsidekick::theme_sleek()
-
-us_er_box <- ggplot(cyer_dat) + 
-  geom_boxplot(aes(x = indicator, y= us_er)) +
-  ggsidekick::theme_sleek()
-
-
 
 ## AMONG STOCK CYER CORRELATIONS -----------------------------------------------
 
-dome_cyer_dat <- read.csv(
-  here::here("data", "DOM_CYER.csv")
-) %>% 
-  janitor::clean_names() %>%
-  filter(mort_type == "TM") %>% 
-  mutate(
-    year = as.numeric(catch_year),
-    smu = "spr_1.3",
-    nation = ifelse(grepl("CA", fishery_group), "can_er", "us_er"),
-    indicator = stock
-  ) %>% 
-  group_by(
-    year, smu, indicator, nation
-  ) %>% 
-  summarize(
-    exp_rate = sum(cyer) / 100
-  ) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = "nation", values_from = "exp_rate") %>% 
-  mutate(
-    total_er = can_er + us_er
-  ) %>% 
-  select(
-    colnames(cyer_dat)
-  )
+## FOLLOWING NEEDS TO BE REVISED WITH UPDATED CYER FORMATTING ##
 
-
-library(reshape2)
-library(corrplot)
-library(GGally)
-
-cyer_wide1 <- cyer_dat %>% 
-  select(year, indicator, total_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "total_er") 
-cyer_wide2 <- rbind(cyer_dat, dome_cyer_dat) %>% 
-  filter(year %in% dome_cyer_dat$year) %>%
-  select(year, indicator, total_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "total_er") 
-
-cyer_wide_can <- rbind(cyer_dat, dome_cyer_dat) %>% 
-  filter(year %in% dome_cyer_dat$year) %>%
-  select(year, indicator, can_er) %>% 
-  pivot_wider(names_from = "indicator", values_from = "can_er") 
-
-
-cor_foo <- function (x) {
-  # cor_mat <- cor(x %>% select(-year),
-  #                use = "pairwise.complete.obs")
-  # 
-  # corrplot.mixed(cor_mat,
-  #                lower = "circle",   # lower triangle = circles
-  #                upper = "number",   # upper triangle = numeric values
-  #                tl.col = "black",
-  #                tl.srt = 45,
-  #                diag   = "n")
-  # df2 <- 
-  ggpairs(x %>% select(-year),
-          upper = list(continuous = wrap("cor", size = 4)),
-          lower = list(continuous = "points"),
-          diag  = list(continuous = "barDiag")) +
-    theme(strip.text = element_text(size = 10))
-}
-
-cor_foo(cyer_wide1)
-
-png(here::here("figs", "cwt_indicator_total_cyer.png"), height = 6.5, 
-    width = 6.5, units = "in", res = 250)
-cor_foo(cyer_wide2)
-dev.off()
-
-png(here::here("figs", "cwt_indicator_can_cyer.png"), height = 6.5, 
-    width = 6.5, units = "in", res = 250)
-cor_foo(cyer_wide_can)
-dev.off()
+# dome_cyer_dat <- read.csv(
+#   here::here("data", "DOM_CYER.csv")
+# ) %>% 
+#   janitor::clean_names() %>%
+#   filter(mort_type == "TM") %>% 
+#   mutate(
+#     year = as.numeric(catch_year),
+#     smu = "spr_1.3",
+#     nation = ifelse(grepl("CA", fishery_group), "can_er", "us_er"),
+#     indicator = stock
+#   ) %>% 
+#   group_by(
+#     year, smu, indicator, nation
+#   ) %>% 
+#   summarize(
+#     exp_rate = sum(cyer) / 100
+#   ) %>% 
+#   ungroup() %>% 
+#   pivot_wider(names_from = "nation", values_from = "exp_rate") %>% 
+#   mutate(
+#     total_er = can_er + us_er
+#   ) %>% 
+#   select(
+#     colnames(cyer_dat)
+#   )
+# 
+# 
+# library(reshape2)
+# library(corrplot)
+# library(GGally)
+# 
+# cyer_wide1 <- cyer_dat %>% 
+#   select(year, indicator, total_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "total_er") 
+# cyer_wide2 <- rbind(cyer_dat, dome_cyer_dat) %>% 
+#   filter(year %in% dome_cyer_dat$year) %>%
+#   select(year, indicator, total_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "total_er") 
+# 
+# cyer_wide_can <- rbind(cyer_dat, dome_cyer_dat) %>% 
+#   filter(year %in% dome_cyer_dat$year) %>%
+#   select(year, indicator, can_er) %>% 
+#   pivot_wider(names_from = "indicator", values_from = "can_er") 
+# 
+# 
+# cor_foo <- function (x) {
+#   # cor_mat <- cor(x %>% select(-year),
+#   #                use = "pairwise.complete.obs")
+#   # 
+#   # corrplot.mixed(cor_mat,
+#   #                lower = "circle",   # lower triangle = circles
+#   #                upper = "number",   # upper triangle = numeric values
+#   #                tl.col = "black",
+#   #                tl.srt = 45,
+#   #                diag   = "n")
+#   # df2 <- 
+#   ggpairs(x %>% select(-year),
+#           upper = list(continuous = wrap("cor", size = 4)),
+#           lower = list(continuous = "points"),
+#           diag  = list(continuous = "barDiag")) +
+#     theme(strip.text = element_text(size = 10))
+# }
+# 
+# cor_foo(cyer_wide1)
+# 
+# png(here::here("figs", "cwt_indicator_total_cyer.png"), height = 6.5, 
+#     width = 6.5, units = "in", res = 250)
+# cor_foo(cyer_wide2)
+# dev.off()
+# 
+# png(here::here("figs", "cwt_indicator_can_cyer.png"), height = 6.5, 
+#     width = 6.5, units = "in", res = 250)
+# cor_foo(cyer_wide_can)
+# dev.off()
 
 
 ## CLEAN FMI DATA --------------------------------------------------------------
@@ -518,7 +250,7 @@ saveRDS(dat, here::here("data", "cyer_fmi_dat.rds"))
 dat <- readRDS(here::here("data", "cyer_fmi_dat.rds")) %>%
   ungroup() %>% 
   mutate(
-    # sd_fmi = fmi * 0.1, #converts CV to SD to pass to BRMS
+    sd_fmi = fmi * 0.1, #converts CV to SD to pass to BRMS
     logit_fmi = qlogis(fmi),
     logit_fmi_centered = logit_fmi - mean(logit_fmi),
     sd_logit_fmi = sd_fmi / (fmi * (1 - fmi))
@@ -526,18 +258,361 @@ dat <- readRDS(here::here("data", "cyer_fmi_dat.rds")) %>%
 
 
 fmi_cyer_cor <- ggplot(dat) +
-  geom_point(aes(x = fmi, y = can_er, fill = stock), shape = 21) +
+  geom_point(aes(x = fmi, y = can_cyer, fill = indicator), shape = 21) +
   geom_abline(aes(intercept = 0, slope = 1), linetype = 2) +
   scale_fill_manual(values = ind_pal) +
   ggsidekick::theme_sleek() 
 
 fmi_cyer_cor_logit <- ggplot(dat) +
-  geom_point(aes(x = qlogis(fmi), y = qlogis(can_er), fill = stock), 
+  geom_point(aes(x = qlogis(fmi), y = qlogis(can_cyer), fill = indicator), 
              shape = 21) +
   geom_abline(aes(intercept = 0, slope = 1), linetype = 2) +
   scale_fill_manual(values = ind_pal) +
   ggsidekick::theme_sleek() 
 
+
+## STAN VERSION ----------------------------------------------------------------
+
+library(cmdstanr)
+library(posterior)
+
+# based on PSC 2008 report with Green River Chinook salmon CV of CYERs
+# (reported in )Table 5-7; p 61) estimated as 0.34 (preterminal sport), 0.49 
+# (terminal sport) and 0.24 (preterminal troll)
+mean_cv <- 0.3 
+
+# Prepare data
+stan_data <- list(
+  N = nrow(dat),
+  N_indicators = length(unique(dat$indicator)),
+  indicator = as.integer(factor(dat$indicator)),
+  can_cyer_obs = dat$can_cyer,
+  logit_fmi_obs = dat$logit_fmi_centered,
+  fmi_obs = dat$fmi,  # proportion scale
+  mean_cv = mean_cv # single CV for both variables
+)
+
+
+# state space version
+mod <- cmdstan_model(
+  here::here("R", "stan", "fmi_cyer_ss.stan")
+)
+
+# informative init values required for low CV, use here as well for consistency
+init_fn <- function(chain_id) {
+  # Add chain-specific jitter
+  list(
+    intercept = -1.5 + rnorm(1, 0, 0.3),
+    slope = 0.7 + rnorm(1, 0, 0.2),
+    sigma_indicator = abs(0.3 + rnorm(1, 0, 0.15)),
+    phi = abs(8 + rnorm(1, 0, 2)),
+    z_indicator = rnorm(stan_data$N_indicators, 0, 0.5),
+    logit_fmi_true_centered = stan_data$logit_fmi_obs + 
+      rnorm(stan_data$N, 0, 0.02),
+    can_cyer_logit_true = qlogis(stan_data$can_cyer_obs) + 
+      rnorm(stan_data$N, 0, 0.02)
+  )
+}
+
+fit <- mod$sample(
+  data = stan_data,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97
+)
+
+
+# standard version
+mod2 <- cmdstan_model(
+  here::here("R", "stan", "fmi_cyer.stan")
+)
+
+fit2 <- mod2$sample(
+  data = stan_data,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97
+)
+
+
+# state space version with reduced CV
+stan_data3 <- stan_data
+stan_data3$mean_cv <- 0.1
+
+fit3 <- mod$sample(
+  data = stan_data3,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 2000,
+  iter_sampling = 2000,
+  adapt_delta = 0.97,
+  max_treedepth = 12,
+  init = init_fn  # Use custom initialization
+)
+
+
+fit_list <- list(fit, fit3, fit2)
+names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
+
+saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
+
+fit_list <- readRDS(here::here("data", "fmi_cyer_fits.rds"))
+
+
+
+## summarize fitted parameters
+fixed_params <- c("intercept", "slope", "sigma_indicator", "phi")
+sum_dat <- purrr::map2(
+  fit_list, names_list,
+  function(x, y) {
+    fixed_summary <- x$summary(variables = fixed_params)
+    
+    indicator_summary <- x$summary(variables = "indicator_effects")
+    
+    bind_rows(
+      fixed_summary,
+      indicator_summary
+    ) %>%
+      select(variable, mean, median, sd, q5 = `q5`, q95 = `q95`, rhat, ess_bulk, 
+             ess_tail) %>% 
+      mutate(
+        model = y
+      )
+  }
+) %>% 
+  bind_rows()
+
+
+
+# posterior predictions across range of fmi values
+fmi_new <- seq(0.0, 0.5, by = 0.01)
+logit_fmi_new <- qlogis(fmi_new)
+logit_fmi_new_centered <- logit_fmi_new - mean(dat$logit_fmi)
+
+N_new <- length(fmi_new)
+
+
+pred_list <- purrr::map2(
+  fit_list, names_list,
+  function (x, y) {
+    draws <- x$draws(format = "df")
+    intercept_draws <- draws$intercept
+    slope_draws <- draws$slope
+    phi_draws <- draws$phi
+    n_draws <- length(intercept_draws)
+    
+    preds <- matrix(NA, nrow = n_draws, ncol = N_new)
+    
+    for (i in 1:n_draws) {
+      for (j in 1:N_new) {
+        # Linear predictor on logit scale
+        mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j] 
+        
+        # Convert to probability scale
+        mu_prob <- plogis(mu_ij)
+        
+        # Beta distribution parameters
+        alpha <- mu_prob * phi_draws[i]
+        beta_param <- (1 - mu_prob) * phi_draws[i]
+        
+        # Generate prediction from Beta distribution (CORRECT)
+        preds[i, j] <- rbeta(1, alpha, beta_param)
+      }
+    }
+    
+    # Summarize preds
+    pred_dat <- tibble(
+      fmi = fmi_new,
+      logit_fmi = logit_fmi_new,
+      logit_fmi_centered = logit_fmi_new_centered,
+      mean = colMeans(preds),
+      median = apply(preds, 2, median),
+      sd = apply(preds, 2, sd),
+      q5 = apply(preds, 2, quantile, probs = 0.05),
+      q25 = apply(preds, 2, quantile, probs = 0.25),
+      q75 = apply(preds, 2, quantile, probs = 0.75),
+      q95 = apply(preds, 2, quantile, probs = 0.95),
+      model = y
+    )
+    
+    out_list <- list(preds, pred_dat)
+    names(out_list) <- c("preds_mat", "preds_dat")
+    return(out_list)
+  }
+)
+  
+pp <- purrr::map(pred_list, ~ .x$preds_dat)
+pred_summary <- bind_rows(pp)
+
+
+# generate observations that show assumed error distribution used in different 
+# models
+dat_with_cv <- purrr::map2(
+  names_list, 
+  c(0.3, 0.1, 0),
+  function(x, y) {
+    dat %>% 
+      mutate(
+        model = x,
+        cv = y,
+        fmi_lower = fmi * (1 - cv),
+        fmi_upper = fmi * (1 + cv),
+        cyer_lower = can_cyer * (1 - cv),
+        cyer_upper = can_cyer * (1 + cv)
+      )
+  }
+) %>% 
+  bind_rows()
+
+mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
+  geom_ribbon(aes(ymin = q5, ymax = q95), alpha = 0.2, fill = "blue") +
+  geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "blue") +
+  geom_line(aes(y = median), color = "blue", linewidth = 1) +
+  geom_errorbar(data = dat_with_cv, 
+                aes(x = fmi, ymin = cyer_lower, ymax = cyer_upper),
+                width = 0, alpha = 0.4, color = "gray40") +
+  geom_errorbarh(data = dat_with_cv,
+                 aes(y = can_cyer, xmin = fmi_lower, xmax = fmi_upper),
+                 height = 0, alpha = 0.4, color = "gray40")  +
+  geom_point(data = dat, aes(y = can_cyer), alpha = 0.6) +
+  geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
+  labs(
+    x = "FMI",
+    y = "CYER") +
+  lims(
+    x = c(0.0, 0.5),
+    y = c(0.0, 0.7)
+  ) +
+  ggsidekick::theme_sleek() +
+  facet_wrap(~model)
+
+
+png(here::here("figs", "model-comp-ribbon.png"), height = 4.5, 
+    width = 7.5, units = "in", res = 250)
+mod_comp_ribbon
+dev.off()
+
+
+
+## export posterior predictions
+pp <- pred_list[[1]]$preds_mat
+
+post_preds <- purrr::map2(
+  pred_list, names_list,
+  function(x, y) {
+    post_draws <- x$preds_mat
+    colnames(post_draws) <- fmi_new
+    post_draws %>%
+      as.data.frame() %>%
+      mutate(iteration = row_number()) %>%
+      pivot_longer(
+        cols = -iteration,
+        names_to = "fmi",
+        values_to = "cyer"
+      ) %>% 
+      mutate(
+        fmi = as.numeric(fmi),
+        model = y
+      )
+  }
+)
+
+saveRDS(
+  bind_rows(post_preds) ,
+  here::here(
+    "data", "fmi_cyer_posterior_predictions.rds"
+  )
+)
+
+
+##### (INCOMPLETE) ######
+#### UPDATE TO UNCENTER BEFORE USING ######
+
+## as above but with stock-specific predictions 
+
+# Extract indicator-specific random effects
+indicator_names <- unique(dat$indicator)
+N_indicators <- length(indicator_names)
+
+indicator_effects_draws <- draws %>%
+  select(starts_with("indicator_effects[")) %>%
+  as.matrix()
+
+# Prepare observed data with indicator mapping
+
+# Generate predictions for each indicator stock
+predictions_by_indicator <- list()
+
+for (ind in 1:N_indicators) {
+  pred_matrix <- matrix(NA, nrow = n_draws, ncol = N_new)
+  
+  for (i in 1:n_draws) {
+    # Get this indicator's random effect
+    ind_effect <- indicator_effects_draws[i, ind]
+    
+    for (j in 1:N_new) {
+      # Linear predictor on logit scale
+      mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new[j] + ind_effect
+      
+      # Add process error
+      logit_pred <- rnorm(1, mu_ij, 1 / sqrt(phi_draws[i]))
+      
+      # Back-transform to proportion scale
+      pred_matrix[i, j] <- plogis(logit_pred)
+    }
+  }
+  
+  # Summarize predictions for this indicator
+  predictions_by_indicator[[ind]] <- tibble(
+    indicator = indicator_names[ind],
+    fmi = fmi_new,
+    logit_fmi = logit_fmi_new,
+    mean = colMeans(pred_matrix),
+    median = apply(pred_matrix, 2, median),
+    sd = apply(pred_matrix, 2, sd),
+    q5 = apply(pred_matrix, 2, quantile, probs = 0.05),
+    q25 = apply(pred_matrix, 2, quantile, probs = 0.25),
+    q75 = apply(pred_matrix, 2, quantile, probs = 0.75),
+    q95 = apply(pred_matrix, 2, quantile, probs = 0.95)
+  )
+}
+
+# Combine all predictions
+all_predictions <- bind_rows(predictions_by_indicator)
+
+ggplot() +
+  geom_line(data = all_predictions, 
+            aes(x = fmi, y = median, color = indicator),
+            linewidth = 1) +
+  geom_ribbon(data = all_predictions, 
+              aes(x = fmi, ymin = q25, ymax = q75, fill = indicator),
+              alpha = 0.15) +
+  geom_point(data = fitted_summary, 
+             aes(x = fmi_prop, y = can_cyer, color = indicator),
+             size = 2.5, alpha = 0.7) +
+  labs(
+    x = "Foreign Marine Index (FMI)",
+    y = "Canadian Exploitation Rate",
+    title = "All Indicator Stocks: Predictions and Observations",
+    subtitle = "Lines = median predictions, ribbons = 50% credible intervals",
+    color = "Indicator",
+    fill = "Indicator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "right"
+  )
+
+
+## BRMS VERSION ----------------------------------------------------------------
+
+# replaced with Stan version above to account for observation error in both CYER
+# and FMI
 
 # fit hiearchical slopes model to fmi data with intercept fixed at 0
 library(brms)
@@ -546,7 +621,7 @@ library(DHARMa)
 
 # random ints
 fit_brms1 <- brm(
-  can_er ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | stock),
+  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | indicator),
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
@@ -556,7 +631,7 @@ fit_brms1 <- brm(
   control = list(adapt_delta = 0.95)
   )
 fit_brms1b <- brm(
-  can_er ~ logit_fmi_centered + (1 | stock), 
+  can_cyer ~ logit_fmi_centered + (1 | indicator), 
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
@@ -569,7 +644,7 @@ fit_brms1b <- brm(
 
 # random slopes and ints
 fit_brms2 <- brm(
-  can_er ~ me(logit_fmi_centered, sd_logit_fmi) + (me(logit_fmi_centered, sd_logit_fmi) | stock),
+  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (me(logit_fmi_centered, sd_logit_fmi) | indicator),
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
@@ -580,7 +655,7 @@ fit_brms2 <- brm(
   control = list(adapt_delta = 0.95)
 )
 fit_brms2b <- brm(
-  can_er ~ logit_fmi_centered + (logit_fmi_centered | stock), 
+  can_cyer ~ logit_fmi_centered + (logit_fmi_centered | indicator), 
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
@@ -594,7 +669,7 @@ fit_brms2b <- brm(
 
 # constrained to be nearly through 0 with strong informative prior
 fit_brms3 <- brm(
-  can_er ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | stock),
+  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | indicator),
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(
@@ -604,7 +679,7 @@ fit_brms3 <- brm(
     # weakly informative prior on the fixed slope
     prior(normal(1, 0.25), class = "b"),
     # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(1), class = "sd", group = "stock",
+    prior(exponential(1), class = "sd", group = "indicator",
           coef = "Intercept"),
     # prior on the Beta‐precision
     prior(exponential(1), class = "phi")
@@ -614,7 +689,7 @@ fit_brms3 <- brm(
   )
 
 fit_brms3b <- brm(
-  can_er ~ logit_fmi_centered + (1 | stock), 
+  can_cyer ~ logit_fmi_centered + (1 | indicator), 
   data = dat,
   family = Beta(link = "logit"),  # Beta regression
   prior = c(
@@ -624,7 +699,7 @@ fit_brms3b <- brm(
     # weakly informative prior on the fixed slope
     prior(normal(1, 0.25), class = "b"),
     # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(1), class = "sd", group = "stock",
+    prior(exponential(1), class = "sd", group = "indicator",
           coef = "Intercept"),
     # prior on the Beta‐precision
     prior(exponential(1), class = "phi")
@@ -636,11 +711,11 @@ fit_brms3b <- brm(
 
 
 pred_dat <- expand.grid(
-  stock = unique(dat$stock),
-  marine_fmi = seq(0.01, 0.5, length.out = 30),
+  indicator = unique(dat$indicator),
+  fmi = seq(0.01, 0.5, length.out = 30),
   sd_logit_fmi = median(dat$sd_logit_fmi)
 )
-pred_dat$logit_fmi <- qlogis(pred_dat$marine_fmi)
+pred_dat$logit_fmi <- qlogis(pred_dat$fmi)
 pred_dat$logit_fmi_centered <- pred_dat$logit_fmi - mean(dat$logit_fmi)
 
 fit_list <- list(
@@ -666,10 +741,10 @@ mean_dat <- purrr::map2(
     pred_dat2 <- cbind(pred_dat, pred1)
     
     global_pred <- pred_dat %>% 
-      filter(stock == "SHU")
+      filter(indicator == "SHU")
     pred_fixed <- predict(x, newdata = global_pred, re.form = NA)
     global_pred2 <- cbind(global_pred, pred_fixed) %>% 
-      mutate(stock = "global")
+      mutate(indicator = "global")
   
     real_pred <- rbind(pred_dat2, global_pred2) %>% 
       mutate(model = y)
@@ -681,7 +756,7 @@ mean_dat <- purrr::map2(
     pred_fixed_link <- fitted(x, newdata = global_pred, 
                          re.form = NA, scale = "linear")
     global_pred2_link <- cbind(global_pred, pred_fixed_link) %>% 
-      mutate(stock = "global")
+      mutate(indicator = "global")
     
     link_pred <- rbind(pred_dat2_link, global_pred2_link) %>% 
       mutate(model = y)
@@ -707,23 +782,23 @@ mean_dat <- purrr::map2(
   )
 
 pred_cyer_ribbon <- fmi_cyer_cor +
-  geom_line(data = mean_dat %>% filter(!stock == "global"),
-            aes(x = marine_fmi, y = Estimate, group = stock),
+  geom_line(data = mean_dat %>% filter(!indicator == "global"),
+            aes(x = fmi, y = Estimate, group = indicator),
             linetype = 2) +
-  geom_line(data = mean_dat %>% filter(stock == "global"),
-            aes(x = marine_fmi, y = Estimate)) +
-  geom_ribbon(data = mean_dat %>% filter(stock == "global"),
-              aes(x = marine_fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
+  geom_line(data = mean_dat %>% filter(indicator == "global"),
+            aes(x = fmi, y = Estimate)) +
+  geom_ribbon(data = mean_dat %>% filter(indicator == "global"),
+              aes(x = fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   facet_wrap(~model, ncol = 2) +
   labs(y = "Predicted CWT-based CYER", x = "FMI-based ER") +
   theme(legend.position = "top")
 
 pred_cyer_ribbon_logit <- fmi_cyer_cor_logit +
-  geom_line(data = mean_dat %>% filter(!stock == "global"),
-            aes(x = logit_fmi, y = link_est, group = stock),
+  geom_line(data = mean_dat %>% filter(!indicator == "global"),
+            aes(x = logit_fmi, y = link_est, group = indicator),
             linetype = 2) +
-  geom_line(data = mean_dat %>% filter(stock == "global"),
+  geom_line(data = mean_dat %>% filter(indicator == "global"),
             aes(x = logit_fmi, y = link_est)) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   facet_wrap(~model, ncol = 2) +
@@ -855,12 +930,12 @@ pred_cyer_ribbon_logit
 dev.off()
 
 png(here::here("figs", "cyer-ts.png"), height = 4.5, 
-    width = 4.5, units = "in", res = 250)
+    width = 7.5, units = "in", res = 250)
 pred_cyer_ridges
 dev.off()
 
 png(here::here("figs", "cyer-ts-violin.png"), height = 4.5, 
-    width = 4.5, units = "in", res = 250)
+    width = 7.5, units = "in", res = 250)
 pred_cyer_violin
 dev.off()
 

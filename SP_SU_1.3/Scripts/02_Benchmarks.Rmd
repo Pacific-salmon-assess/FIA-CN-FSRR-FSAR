@@ -94,10 +94,13 @@ summ_smax0.2 <- nu_smax %>% group_by(CU) %>%
             CI97.5_lbb = quantile(smax*0.2, probs = 0.975)) %>% 
   left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
 
+saveRDS(summ_smax0.2, "smax0.2.RDS")
 
-###in case they still want 85% SMSY calculated, use this package: https://www.rdocumentation.org/packages/lamW/versions/2.2.5/topics/lambertW
 
-##and use this equation from the Stan models: smsy = ((1 - lambert_w0(exp(1 - (alpha)))) / (beta))
+###in case they still want 85% SMSY calculated, use this package:
+
+##and use this equation from the Stan models: smsy = ((1 - gsl::lambert_w0(exp(1 - (alpha)))) / (beta))
+
 
 ```
 
