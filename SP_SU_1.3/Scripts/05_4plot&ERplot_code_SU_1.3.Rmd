@@ -52,11 +52,11 @@ Code chunk to create the Summer 1.3 recruitment plot
 ```{r recruitment plot}
 
 recs <- ER_dat %>%
-  select(year, recruits_CYER) %>%
-  # select(year, recruits_CYER, recruits_FMI) %>%
+  # select(year, recruits_CYER) %>%
+  select(year, recruits_CYER, recruits_FMI) %>%
   pivot_longer(
-    cols = c(recruits_CYER),
-    # cols = c(recruits_CYER, recruits_FMI),
+    # cols = c(recruits_CYER),
+    cols = c(recruits_CYER, recruits_FMI),
     names_to = "source",
     values_to = "recruits"
   ) %>%
@@ -64,7 +64,7 @@ recs <- ER_dat %>%
     source = recode(
       source,
       recruits_CYER = "CYER",
-      # recruits_FMI  = "FMI"
+      recruits_FMI  = "FMI"
     ))
   
 
@@ -82,8 +82,8 @@ ggplot(aes(x = year, y = recruits / 1000, colour = source)) +
     colour = NULL
   ) +
   scale_colour_manual(
-    values= c("CYER" = "black")
-    # values = c("CYER" = "black", "FMI" = "grey70") # for res doc version will show both ERs
+    # values= c("CYER" = "black")
+    values = c("CYER" = "black", "FMI" = "grey70") # for res doc version will show both ERs
   ) +
   scale_y_continuous(
     breaks = seq(
@@ -103,19 +103,19 @@ Code chunk to create the Spring 1.2 catch plot
 ```{r catch plot}
 
 cat <- ER_dat %>%
-  select(year, catch_CYER) %>%
-  # select(year, catch_CYER, catch_FMI) %>%
+  # select(year, catch_CYER) %>%
+  select(year, catch_CYER, catch_FMI) %>%
   pivot_longer(
-    cols = c(catch_CYER),
-    # cols = c(catch_CYER, catch_FMI),
+    # cols = c(catch_CYER),
+    cols = c(catch_CYER, catch_FMI),
     names_to = "source",
     values_to = "catch"
   ) %>%
   mutate(
     source = recode(
       source,
-      catch_CYER = "CYER"
-      # catch_FMI  = "FMI"
+      catch_CYER = "CYER",
+      catch_FMI  = "FMI"
     ))
   
 
@@ -133,8 +133,8 @@ ggplot(aes(x = year, y = catch / 1000, colour = source)) +
     colour = NULL
   ) +
   scale_colour_manual(
-    values = c("CYER" = "black")
-    # values = c("CYER" = "black", "FMI" = "grey70")
+    # values = c("CYER" = "black")
+    values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
     breaks = seq(
@@ -205,19 +205,19 @@ Code chunk to create the Summer 1.3 exploitation rate plot
 
 
 ER <- ER_dat %>%
-  select(year, CYER) %>%
-  # select(year, FMI, CYER) %>%
+  # select(year, CYER) %>%
+  select(year, FMI, CYER) %>%
   pivot_longer(
-    cols = c(CYER),
-    # cols = c(FMI, CYER),
+    # cols = c(CYER),
+    cols = c(FMI, CYER),
     names_to = "source",
     values_to = "ER"
   ) %>%
   mutate(
     source = recode(
       source,
-      CYER = "CYER"
-      # FMI  = "FMI"
+      CYER = "CYER",
+      FMI  = "FMI"
     ))
 
 ER <- ER %>% 
@@ -229,8 +229,8 @@ ggplot(aes(x = year, y = ER, colour = source)) +
     colour = NULL
   ) +
   scale_colour_manual(
-    values = c("CYER"= "black")
-    # values = c("CYER" = "black", "FMI" = "grey70")
+    # values = c("CYER"= "black")
+    values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
     breaks = seq(
@@ -250,7 +250,7 @@ geom_hline(yintercept = 0.40, colour = "red",  linewidth = 0.8) +
 #   size = 3.5,
 #   parse = TRUE
 # ) +
-geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8, linetype = "dashed") +
+# geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8, linetype = "dashed") +
 # geom_text(
 #   data = data.frame(x = 2024, y = 0.10), # Insert finalized lower fishery reference point 
 #   aes(x = x, y = y, label = "FRP-L"),
