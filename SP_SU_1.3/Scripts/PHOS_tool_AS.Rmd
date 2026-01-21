@@ -1,0 +1,224 @@
+---
+title: "Icecream plot code"
+author: "Colin Bailey"
+date: "2026-01-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(cowplot)
+library(boot)
+library(ggpattern)
+```
+
+
+```{r example data}
+#Please adjust the data inputs to values that are relevant to SEP... you could potentially change the ranges in abundances of smolts and spawners to vary on the log-scale instead
+#Chilko Survival Data - This is based on Brood year and includes all return ages 
+#Fed Fry 2014-2018
+# Min = .03 Mean = .11 Max .29 SD = .12
+#Smolt 2014-2019
+# Min = .21 Mean = .57 Max 1.22 SD = .43
+
+
+
+spawn <- seq(100, 20000, by = 100)
+smolt <- seq(10000, 200000, by = 10000) # 10k min as that is the min release we typically do #100k max as that is easy for mental math
+fry <- seq(10000, 200000, by = 10000)
+
+#can expand this code chunk to include calculations for fry survival
+phos_df <- expand.grid(x=spawn, y=smolt, z=fry) %>% 
+  dplyr::select(spawn = x, smolt = y, fry=z) %>% 
+  mutate(l_h_spawn_smolt = smolt * 0.0021, 
+         u_h_spawn_smolt = smolt * 0.0122,
+         l_phos_smolt = l_h_spawn_smolt / spawn,
+         u_phos_smolt = u_h_spawn_smolt / spawn,
+         l_h_spawn_fry = fry * 0.0003, 
+         u_h_spawn_fry = fry * 0.0029,
+         l_phos_fry = l_h_spawn_fry / spawn,
+         u_phos_fry = u_h_spawn_fry / spawn)
+```
+
+Currently set up the section below to make 2 plots for a given lifestage (example is smolts) - one for the lowest potential PHOS, and a second for the highest potential PHOS.THis may make more sense than creating broad probability categories that span the range of survival rates if the rates spawn an order of magnitude. Alternatively, it may make more sense to just report the maximum potential PHOS because we all know that survival can go to zero for a variety of reasons. 
+```{r icecream plot}
+
+#can update these categories to meaningful text and PHOS ranges for SEP
+Ccols <- c("Wild (0.00-0.02)" = "#4dac26",
+           "Integrated-wild (0.02-0.19)" = "#b8e186", 
+           "Integrated-transition (0.19-0.47)" = "#f7f7f7", 
+           "Integrated-hatchery (0.47-1.00)" = "#d01c8b")
+
+#y-axis ticks
+all_breaks_x = seq(10000, 200000, length.out = 20)
+my_labels_x = rep("", length(all_breaks_x))
+my_labels_x[seq(1, length(my_labels_x), 4)] <- all_breaks_x[seq(1, length(my_labels_x), 4)]
+
+#x-axis ticks
+all_breaks_y = seq(100, 20000, by = 200)
+my_labels_y = rep("", length(all_breaks_y))
+my_labels_y[seq(1, length(my_labels_y), 10)] <- all_breaks_y[seq(1, length(my_labels_y), 10)]
+
+#lower pHOS for smolt releases
+p_l_phos_smolt <- phos_df %>%  mutate(l_phos_smolt = ifelse(l_phos_smolt <= 0.02, "Wild (0.00-0.02)",
+                                          ifelse(l_phos_smolt > 0.02 & l_phos_smolt <= 0.19, "Integrated-wild (0.02-0.19)",
+                                                 ifelse(l_phos_smolt > 0.19 & l_phos_smolt <= 0.47, "Integrated-transition (0.19-0.47)",
+                                                        "Integrated-hatchery (0.47-1.00)")))) %>% 
+   ggplot(aes(x = smolt, y = spawn, z = l_phos_smolt, fill = l_phos_smolt))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "pHOS Designation",
+                     breaks = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)")),
+                     drop = F,
+                     limits = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Smolt Release Abundance") + 
+   theme_classic()+
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         legend.box = "horizontal",
+         legend.position = "bottom")
+
+#upper pHOS for smolt releases
+p_u_phos_smolt <- phos_df %>%  mutate(u_phos_smolt = ifelse(u_phos_smolt <= 0.02, "Wild (0.00-0.02)",
+                                          ifelse(u_phos_smolt > 0.02 & u_phos_smolt <= 0.19, "Integrated-wild (0.02-0.19)",
+                                                 ifelse(u_phos_smolt > 0.19 & u_phos_smolt <= 0.47, 
+                                                        "Integrated-transition (0.19-0.47)",
+                                                        "Integrated-hatchery (0.47-1.00)")))) %>% 
+   ggplot(aes(x = smolt, y = spawn, z = u_phos_smolt, fill = u_phos_smolt))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "pHOS Designation",
+                     breaks = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)")),
+                     drop = F,
+                     limits = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Smolt Release Abundance") + 
+   theme_classic()+
+   theme(legend.position = "none")
+
+
+#lower pHOS for fry releases
+p_l_phos_fry <- phos_df %>%  mutate(l_phos_fry = ifelse(l_phos_fry <= 0.02, "Wild (0.00-0.02)",
+                                          ifelse(l_phos_fry > 0.02 & l_phos_fry <= 0.19, "Integrated-wild (0.02-0.19)",
+                                                 ifelse(l_phos_fry > 0.19 & l_phos_fry <= 0.47, "Integrated-transition (0.19-0.47)",
+                                                        "Integrated-hatchery (0.47-1.00)")))) %>% 
+   ggplot(aes(x = fry, y = spawn, z = l_phos_fry, fill = l_phos_fry))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "pHOS Designation",
+                     breaks = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)")),
+                     drop = F,
+                     limits = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Fry Release Abundance") + 
+   theme_classic()+
+   theme(legend.position = "none")
+
+#upper pHOS for fry releases
+p_u_phos_fry <- phos_df %>%  mutate(u_phos_fry = ifelse(u_phos_fry <= 0.02, "Wild (0.00-0.02)",
+                                          ifelse(u_phos_fry > 0.02 & u_phos_fry <= 0.19, "Integrated-wild (0.02-0.19)",
+                                                 ifelse(u_phos_fry > 0.19 & u_phos_fry <= 0.47, "Integrated-transition (0.19-0.47)",
+                                                        "Integrated-hatchery (0.47-1.00)")))) %>% 
+   ggplot(aes(x = fry, y = spawn, z = u_phos_fry, fill = u_phos_fry))+
+   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   scale_fill_manual(values = Ccols,
+                     name = "pHOS Designation",
+                     breaks = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)")),
+                     drop = F,
+                     limits = rev(c("Wild (0.00-0.02)", "Integrated-wild (0.02-0.19)", "Integrated-transition (0.19-0.47)",
+                                    "Integrated-hatchery (0.47-1.00)"))) +
+   scale_x_continuous(expand = c(0,0),
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   labs(y = "Total Spawner Abundance", 
+        x = "HO Fry Release Abundance") + 
+   theme_classic()+
+   theme(legend.position = "none")
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(p_l_phos_smolt +  
+                     theme(legend.text = element_text(size = 8),
+                           legend.title = element_text(size = 8),
+                           legend.box = "horizontal"))
+
+
+pHOS <- ggdraw(plot_grid(p_l_phos_smolt + theme(axis.title.x = element_text(colour = "white"),
+                                            axis.text.x = element_text(colour = "white"),
+                                            plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                            legend.position = "none"), 
+                       p_l_phos_fry+ theme(axis.title.x = element_text(colour = "white"),
+                                           axis.text.x = element_text(colour = "white"),
+                                           axis.title.y = element_text(colour = "white"),
+                                           axis.text.y = element_text(colour = "white"),
+                                           plot.margin = unit(c(0, 0, 0, 0), "cm")),
+                       p_u_phos_smolt + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")),
+                       p_u_phos_fry + theme(axis.title.y = element_text(colour = "white"),
+                                            axis.text.y = element_text(colour = "white"),
+                                            plot.margin = unit(c(0, 0, 0, 0), "cm")),
+                       ncol = 2, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("a", "b", "c", "d"),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+pHOS_plot <- cowplot::plot_grid(pHOS, legend1,
+                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave(pHOS_plot, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\pHOS_tool.pdf")
+
+
+```
