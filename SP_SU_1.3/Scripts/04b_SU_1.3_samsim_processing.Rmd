@@ -24,8 +24,14 @@ This code chunk retrieves the simulation results from the folders and combines t
 ```{r, read in scenario outputs}
 
 #retrieving the basic simulation parameterization
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su.csv")
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
+
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
+# 
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
 alpha_nu <- seq(from = 0.26, to = 2.05, length.out = 10)
@@ -86,8 +92,16 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-05",
                                              ifelse(CU == 2, "CK-06",
                                                     ifelse(CU == 3, "CK-09",
                                                            ifelse(CU == 4, "CK-11",
-                                                                  ifelse(CU == 4, "CK-14","CK-19")))))) %>% 
+                                                                  ifelse(CU == 5, "CK-14","CK-19")))))) %>% 
                                  dplyr::select(iteration, year, CU_ID, CU, scenario, spawners, beta, alpha, sigma) %>% 
+   mutate(targetER = as.numeric(substr(scenario, 3, nchar(scenario))))
+
+sim_sum_ER <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-05",
+                                             ifelse(CU == 2, "CK-06",
+                                                    ifelse(CU == 3, "CK-09",
+                                                           ifelse(CU == 4, "CK-11",
+                                                                  ifelse(CU == 5, "CK-14","CK-19")))))) %>% 
+                                 dplyr::select(iteration, year, CU, scenario, ER) %>% 
    mutate(targetER = as.numeric(substr(scenario, 3, nchar(scenario))))
 
 
@@ -95,7 +109,7 @@ sim_sum <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-05",
 summ_smax0.2 <- readRDS("smax0.2.RDS")
 
 sim_sum_CU <- sim_sum %>%
-   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+   filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-05" & geo_mean_gen >= 1500, 1,
@@ -114,7 +128,7 @@ sim_sum_CU <- sim_sum %>%
 
 #QET set to 50 fish for similar life-history of Chinook in the Snake River Basin, so used that here
 sim_sum_CU_QET <- sim_sum %>%
-   filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+   filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-05" & geo_mean_gen >= 50, 1,
@@ -132,7 +146,7 @@ sim_sum_CU_QET <- sim_sum %>%
    summarize(p_fail = mean(cu_fail))
 
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
-sim_sum_SMU <- sim_sum %>% filter(year %in% c(41:45)) %>%  #need to update when new sim is run... will be years 41:45 
+sim_sum_SMU <- sim_sum %>% filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-05" & geo_mean_gen >= 1500, 1,
@@ -160,11 +174,116 @@ This chunk defines a function for converting CYER to FMI which is used to calcul
 Code chunk for going back and forth between CYER and FMI for secondary Y-axis. *To be coded when FMI~CYER analysis is finished*
 ```{r ER transform}
 
+i_o = -1.54
+s_o = 0.400
+i_p = -1.28
+s_p = 0.0843
 
+FMI = seq(0, 1, by = 0.1)
+
+opti <- function(FMI){
+   CYER = inv.logit(FMI * s_o + i_o)
+   print(CYER)
+}
+
+df_opti <- data.frame(FMI, opti(FMI)) %>% 
+   dplyr::select(FMI, CYER = opti.FMI.)
+
+anns_opti <- df_opti[FMI %in% seq(0, 0.4, by = 0.1), ]
+
+pess <- function(targetER){
+   CYER = inv.logit(FMI * s_p + i_p)
+   print(CYER)
+}
+
+df_pess <- data.frame(FMI, pess(FMI)) %>% 
+   dplyr::select(FMI, CYER = pess.FMI.)
+
+anns_pess <- df_pess[FMI %in% seq(0, 0.4, by = 0.1), ]
 
 ```
 
 
+Illustrating the CYER FMI relationship in the optimistic and pessimistic scenarios
+```{r freq dist plot of FMI vs CYER}
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
+#pessimistic scenario
+med_pess <- ER_post %>% filter(model == "state space - 0.3 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer)) %>% 
+   mutate(fmi = fct_reorder(as.factor(fmi), fmi, .fun = median, .desc = T))
+
+pess_plot <- ER_post %>% filter(model == "state space - 0.3 CV") %>%
+   mutate(fmi = fct_reorder(as.factor(fmi), fmi, .fun = median, .desc = T)) %>% 
+   ggplot()+
+   geom_density(aes(x = cyer, fill = fmi), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_pess, aes(xintercept = med_cyer, colour = fmi))+
+   labs(x = "CAN CYER", y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(1,1),
+         legend.justification = c(1,1),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+#optimistic scenario
+med_opti <- ER_post %>% filter(model == "state space - 0.1 CV") %>% group_by(fmi) %>% summarize(med_cyer = median(cyer)) %>% 
+   mutate(fmi = fct_reorder(as.factor(fmi), fmi, .fun = median, .desc = T))
+
+opti_plot <- ER_post %>% filter(model == "state space - 0.1 CV") %>% 
+   mutate(fmi = fct_reorder(as.factor(fmi), fmi, .fun = median, .desc = T)) %>% 
+   ggplot()+
+   geom_density(aes(x = cyer, fill = fmi), alpha = 0.3)+
+   coord_flip()+
+   scale_x_continuous(limits = c(0, 0.45),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   scale_y_continuous(expand = c(0,0))+
+   # scale_fill_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   # scale_colour_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+
+   geom_vline(data = med_opti, aes(xintercept = med_cyer, colour = fmi))+
+   labs(x = "CAN CYER", y = "Frequency", fill = "FMI", colour = "FMI")+
+   theme_classic()+
+   theme(legend.position = c(1,1),
+         legend.justification = c(1,1),
+         legend.key.size = unit(0.5, "lines"))+
+   guides(fill = guide_legend(ncol = 1))
+
+
+
+
+```
+
+Plotting realized ER by iteration and target ER
+```{r plot ER}
+
+ER <- unique(sim_sum_ER$targetER)
+targetER <- as.factor(unique(sim_sum_ER$targetER))
+df_ER <- data.frame(ER, targetER)
+
+#note that ER needs to be filtered for values > 0 because extinction events cause ER to drop to zero
+sim_sum_ER %>% filter(iteration %in% seq(1, 500, by = 5) & CU == 4 & year > 60 & ER > 0) %>% ggplot(aes(x = year, y = ER))+
+   geom_line(aes(x = year, y = ER, group = as.factor(iteration)), alpha = 0.1, linewidth = 0.2)+
+   geom_hline(data = df_ER, aes(yintercept = ER + 0.04), colour = "red", linewidth = 0.1)+
+   facet_wrap(.~ as.factor(targetER))+
+   labs(x = "Year", y = "ER")+
+   theme_classic()
+
+# ggsave(height = 5, width = 5, units = "in", filename = "ER_opti_su.pdf")
+# ggsave(height = 5, width = 5, units = "in", filename = "ER_pess_su.pdf")
+ ggsave(height = 5, width = 5, units = "in", filename = "ER-impl_su.pdf")
+
+```
+
+Optimistic CU Results
 ```{r sim results vis CU sum}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
@@ -173,6 +292,10 @@ Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Moderately High (0.50-0.74)" = "#f7f7f7",
            "High (0.75-0.94)" = "#b8e186",
            "Very High (0.95-1.00)" = "#4dac26")
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
 
 #p(CU above LBM)
 CU_plot <- list()
@@ -183,10 +306,11 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
                                                                ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
                                                                       "Very High (0.95-1.00)"))))),
-                               CU = ifelse(CU_ID == 1, "CK-04",
-                                           ifelse(CU_ID == 2, "CK-08",
-                                                  ifelse(CU_ID == 3, "CK-10",
-                                                         ifelse(CU_ID == 4, "CK-12", "CK-18"))))) %>% 
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
@@ -197,25 +321,631 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
    scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         legend.box = "horizontal")#may need to make additional adjustments to create a wide and skinny legend
+}
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(CU_plot[[1]] +  
+                        guides(color = guide_legend(nrow = 1)) +
+                        theme(legend.position = "bottom"))
+
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- CU_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+}
+
+opti_plotA <- opti_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                axis.title.x = element_text(colour = "white"),
+                                axis.text.x = element_text(colour = "white"),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+CU <- ggdraw(plot_grid(opti_plotA, CU_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   CU_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   CU_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                       opti_plotB, CU_plot[[4]], CU_plot[[5]], CU_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("", "Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+CU_plot <- cowplot::plot_grid(CU, legend1,
+                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave(CU_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU.pdf")
+
+```
+
+Optimistic CU QET Results
+```{r sim results vis CU QET}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+#p(CU above LBM)
+QET_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Conservation Unit\n> Quasi-Extinction Threshold)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0))+
    scale_y_continuous(sec.axis = sec_axis(~ (. * 1), #equation drawn from FMI~CYER analysis that converts one to the other 
                                           name = "FMI"),
                       expand = c(0,0))+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
    theme_classic()#+
-   
-   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
-   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
-   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+
+}
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(QET_plot[[1]] +  
+                        guides(color = guide_legend(nrow = 1)) +
+                        theme(legend.position = "bottom"))
+
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   QET_plot[[i]] <- QET_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+}
+
+QET <- ggdraw(plot_grid(opti_plotA, QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")),
+                                   QET_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                       opti_plotB, QET_plot[[4]], QET_plot[[5]], QET_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("", "Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+QET_plot <- cowplot::plot_grid(QET, legend1,
+                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave(QET_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_QET.pdf")
+
+```
+
+Optimistic SMU Results
+```{r sim results vis SMU sum}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
+#p(SMU > LRP)
+SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Stock Management Unit\n> Limit Reference Point)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(SMU_plot)
+
+opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+SMU <- ggdraw(plot_grid(opti_plotB, SMU_plot + theme(legend.position = "none"), legend1,
+                       #rel_widths = c(1, 1, 1, 1, 1, .2),
+                       ncol = 3, nrow = 1, axis = c("l"), align = c("hv"),
+                       labels = c("", "Fraser\nSU 1.3"),
+                       label_size = 8,
+                       label_colour = "white",
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+SMU_plot <- cowplot::plot_grid(SMU)
+
+ggsave(SMU_plot, height = 2.15, width = 6.75, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_SMU.pdf")
+
+```
+
+Realistic CU Results
+```{r sim results vis CU sum}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
+#p(CU above LBM)
+CU_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- sim_sum_CU %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Conservation Unit\n> 1500 or 20% Smax)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
+   scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         legend.box = "horizontal")#may need to make additional adjustments to create a wide and skinny legend
+}
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(CU_plot[[1]] +  
+                        guides(color = guide_legend(nrow = 1)) +
+                        theme(legend.position = "bottom"))
+
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- CU_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+}
+
+pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                axis.title.x = element_text(colour = "white"),
+                                axis.text.x = element_text(colour = "white"),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+CU <- ggdraw(plot_grid(pess_plotA, CU_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   CU_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   CU_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                       pess_plotB, CU_plot[[4]], CU_plot[[5]], CU_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("", "Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+CU_plot <- cowplot::plot_grid(CU, legend1,
+                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave(CU_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_pess.pdf")
+
+```
+
+Realistic CU QET Results
+```{r sim results vis CU QET}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+#p(CU above LBM)
+QET_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Conservation Unit\n> Quasi-Extinction Threshold)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(sec.axis = sec_axis(~ (. * 1), #equation drawn from FMI~CYER analysis that converts one to the other 
+                                          name = "FMI"),
+                      expand = c(0,0))+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic()#+
+
+}
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(QET_plot[[1]] +  
+                        guides(color = guide_legend(nrow = 1)) +
+                        theme(legend.position = "bottom"))
+
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   QET_plot[[i]] <- QET_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+}
+
+pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                axis.title.x = element_text(colour = "white"),
+                                axis.text.x = element_text(colour = "white"),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+QET <- ggdraw(plot_grid(pess_plotA, QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")),
+                                   QET_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                       pess_plotB, QET_plot[[4]], QET_plot[[5]], QET_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("", "Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+QET_plot <- cowplot::plot_grid(QET, legend1,
+                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave(QET_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_QET_pess.pdf")
+
+```
+
+Realistic SMU Results
+```{r sim results vis SMU sum}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
+#p(SMU > LRP)
+SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Stock Management Unit\n> Limit Reference Point)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
+   scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
+
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(SMU_plot)
+
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+SMU <- ggdraw(plot_grid(pess_plotB, SMU_plot + theme(legend.position = "none"), legend1,
+                       #rel_widths = c(1, 1, 1, 1, 1, .2),
+                       ncol = 3, nrow = 1, axis = c("l"), align = c("hv"),
+                       labels = c("", "Fraser\nSU 1.3"),
+                       label_size = 8,
+                       label_colour = "white",
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+SMU_plot <- cowplot::plot_grid(SMU)
+
+ggsave(SMU_plot, height = 2.15, width = 6.75, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_SMU_pess.pdf")
+
+```
+
+
+No Implementation Error CU Results
+```{r sim results vis CU sum}
+
+Ccols <- c("Very Low (0.00-0.04)" = "#330033",
+           "Low (0.05-0.24)" = "#d01c8b", 
+           "Moderately Low (0.25-0.49)" = "#f1b6da", 
+           "Moderately High (0.50-0.74)" = "#f7f7f7",
+           "High (0.75-0.94)" = "#b8e186",
+           "Very High (0.95-1.00)" = "#4dac26")
+
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
+#p(CU above LBM)
+CU_plot <- list()
+for(i in 1:length(unique(sim_sum_CU$CU_ID))){
+   CU_plot[[i]] <- sim_sum_CU %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+                                          ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
+                                                 ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
+                                                        ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
+                                                               ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
+                                                                      "Very High (0.95-1.00)"))))),
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
+   ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
+   geom_tile(show.legend = c(fill = TRUE))+
+   scale_fill_manual(values = Ccols, 
+                     name = "P(Conservation Unit\n> 1500 or 20% Smax)",
+                     breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
+                     drop = F,
+                     limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
+                                    "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
+   scale_x_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
+   labs(y = "CAN CYER", 
+        x = "Productivity [ln(α)]") + 
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8))
 }
 
 get_legend <- function(plot, legend = NULL) {
@@ -245,24 +975,48 @@ get_legend <- function(plot, legend = NULL) {
 legend1 = get_legend(CU_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   CU_plot[[i]] <- CU_plot[[i]] + 
-   theme(legend.position='none')
+   CU_plot[[i]] <- CU_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
 }
 
-CU <- ggdraw(plot_grid(CU_plot[[1]], CU_plot[[2]], CU_plot[[3]], CU_plot[[4]], CU_plot[[5]], CU_plot[[6]], legend1,
-                       rel_widths = c(1, 1, 1, 1, 1, 1, .2),
-                       ncol = 2, nrow = 4, axis = c("l"), align = c("hv"),
-                       labels = c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19"),
-                       label_size = 12,
-                       label_x = 0.55, label_y = 0.9))
+pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                axis.title.x = element_text(colour = "white"),
+                                axis.text.x = element_text(colour = "white"),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+CU <- ggdraw(plot_grid(CU_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white"),
+                                            axis.text.y = element_text(colour = "black"),
+                                            axis.title.y = element_text(colour = "black", angle = 90)), 
+                                   CU_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   CU_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), legend1, 
+                       CU_plot[[4]]  + theme(axis.text.y = element_text(colour = "black"),
+                                             axis.title.y = element_text(colour = "black", angle = 90)), 
+                       CU_plot[[5]], CU_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 8.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU.pdf")
+ggsave(CU_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU-impl.pdf")
 
 ```
 
-
+Realistic CU QET Results
 ```{r sim results vis CU QET}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
@@ -281,10 +1035,11 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
                                                                ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
                                                                       "Very High (0.95-1.00)"))))),
-                               CU = ifelse(CU_ID == 1, "CK-04",
-                                           ifelse(CU_ID == 2, "CK-08",
-                                                  ifelse(CU_ID == 3, "CK-10",
-                                                         ifelse(CU_ID == 4, "CK-12", "CK-18"))))) %>% 
+                               CU = ifelse(CU_ID == 1, "CK-05",
+                                           ifelse(CU_ID == 2, "CK-06",
+                                                  ifelse(CU_ID == 3, "CK-09",
+                                                         ifelse(CU_ID == 4, "CK-11",
+                                                                ifelse(CU_ID == 5, "CK-14","CK-19")))))) %>% 
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
@@ -295,25 +1050,14 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(sec.axis = sec_axis(~ (. * 1), #equation drawn from FMI~CYER analysis that converts one to the other 
-                                          name = "FMI"),
-                      expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
-   theme_classic()#+
-   
-   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
-   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
-   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8))
 }
 
 get_legend <- function(plot, legend = NULL) {
@@ -343,25 +1087,48 @@ get_legend <- function(plot, legend = NULL) {
 legend1 = get_legend(QET_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- QET_plot[[i]] + 
-   theme(legend.position='none')
+   QET_plot[[i]] <- QET_plot[[i]]+
+   theme(legend.position='none',
+         axis.text.y = element_blank(),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
 }
 
+pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                axis.title.x = element_text(colour = "white"),
+                                axis.text.x = element_text(colour = "white"),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-QET <- ggdraw(plot_grid(QET_plot[[1]], QET_plot[[2]], QET_plot[[3]], QET_plot[[4]], QET_plot[[5]], QET_plot[[6]], legend1,
-                       rel_widths = c(1, 1, 1, 1, 1, 1, .2),
-                       ncol = 2, nrow = 4, axis = c("l"), align = c("hv"),
-                       labels = c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19"),
-                       label_size = 12,
-                       label_x = 0.55, label_y = 0.9))
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+QET <- ggdraw(plot_grid(QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white"),
+                                            axis.text.y = element_text(colour = "black"),
+                                            axis.title.y = element_text(colour = "black", angle = 90)), 
+                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), 
+                                   QET_plot[[3]]+ theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), legend1, 
+                       QET_plot[[4]]  + theme(axis.text.y = element_text(colour = "black"),
+                                             axis.title.y = element_text(colour = "black", angle = 90)), 
+                       QET_plot[[5]], QET_plot[[6]],
+                       ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
+                       labels = c("Upper\nPitt", "Lower\nFraser", "Portage", "","Middle\nFraser","South\nThompson",
+                                  "North\nThompson", ""),
+                       label_size = 8,
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
 
 QET_plot <- cowplot::plot_grid(QET)
 
-ggsave(QET_plot, height = 8.5, width = 6, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_QET.pdf")
+ggsave(QET_plot, height = 4.73, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_CU_QET-impl.pdf")
 
 ```
 
-
+No Implementation Error SMU Results
 ```{r sim results vis SMU sum}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
@@ -371,6 +1138,10 @@ Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "High (0.75-0.94)" = "#b8e186",
            "Very High (0.95-1.00)" = "#4dac26")
 
+all_breaks = seq(0, 0.45, by = 0.05)
+my_labels = rep("", length(all_breaks))
+my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
+
 #p(SMU > LRP)
 SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
@@ -379,7 +1150,7 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
                                                                ifelse(p_fail > 0.74 & p_fail <= 0.94, "High (0.75-0.94)",
                                                                       "Very High (0.95-1.00)")))))) %>% 
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
-   geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
+   geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
                      name = "P(Stock Management Unit\n> Limit Reference Point)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
@@ -388,26 +1159,56 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
    scale_x_continuous(expand = c(0,0))+
-   scale_y_continuous(expand = c(0,0))+
+   scale_y_continuous(expand = c(0,0),
+                      breaks = all_breaks,
+                      labels = my_labels)+
    labs(y = "CAN CYER", 
         x = "Productivity [ln(α)]") + 
-   theme_classic()#+
+   theme_classic() +
+   theme(legend.text = element_text(size = 8),
+         legend.title = element_text(size = 8),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-   ###code for adding lines to the plots at ERs X log(a)s of interest (or placing an FRP-L)
-   # geom_segment(aes(x = 0.26, y = 0.30, xend = 1.09, yend = 0.30),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   #    geom_segment(aes(x = 0.26, y = 0.05, xend = 0.725, yend = 0.05),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 0.725, y = 0.05, xend = 0.725, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)+
-   # geom_segment(aes(x = 1.09, y = 0.30, xend = 1.09, yend = -0.025),
-   #              colour = "blue", linewidth = 0.5, alpha = 0.1)
-   # annotate("text", x = 0.78 + 0.03, y = 0.05, label = "Low", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.167, label = "Limit", hjust = 0, size = 4)+
-   # annotate("text", x = 0.78 + 0.03, y = 0.119, label = "3-yr mean", hjust = 0, size = 4)
+get_legend <- function(plot, legend = NULL) {
+  
+  gt <- ggplotGrob(plot)
+  
+  pattern <- "guide-box"
+  if (!is.null(legend)) {
+    pattern <- paste0(pattern, "-", legend)
+  }
+  
+  indices <- grep(pattern, gt$layout$name)
 
-ggsave(SMU_plot, height = 2.5, width = 4.75, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_SMU.pdf")
+  not_empty <- !vapply(
+    gt$grobs[indices], 
+    inherits, what = "zeroGrob", 
+    FUN.VALUE = logical(1)
+  )
+  indices <- indices[not_empty]
+  
+  if (length(indices) > 0) {
+    return(gt$grobs[[indices[1]]])
+  }
+  return(NULL)
+}
+
+legend1 = get_legend(SMU_plot)
+
+pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+                                legend.title = element_text(size = 8),
+                                plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+
+SMU <- ggdraw(plot_grid(SMU_plot + theme(legend.position = "none"), legend1,
+                       ncol = 2, nrow = 1, axis = c("l"), align = c("hv"),
+                       labels = c("", "Fraser\nSU 1.3"),
+                       label_size = 8,
+                       label_colour = "white",
+                       label_x = 0.95, label_y = 1.00, hjust = 1))
+
+SMU_plot <- cowplot::plot_grid(SMU)
+
+ggsave(SMU_plot, height = 2.15, width = 4.5, units = "in", filename = "SP_SU_1.3\\Figures\\SU\\sim_sum_SMU-impl.pdf")
 
 ```
-
-
