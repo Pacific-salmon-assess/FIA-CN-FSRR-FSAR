@@ -46,6 +46,9 @@ wsp_cu_years <- read.csv(
   here("SP_SU_1.3", "Data_in", "CU_Data_FraserSandbox_1.3_startyrs.csv")
 )
 
+survival_dat <-read.csv(
+  here("SP_SU_1.3", "Data_in", "CKO_survival_dat_dec_2025.csv")
+)
 ```
 
 Code chunk to create the Summer 1.3 recruitment plot
@@ -530,3 +533,26 @@ ggsave("Summer_1.3_3Panel_LinePlotVertical.png",
        Summer_panel, width = 6, height = 12, units = "in", dpi = 300)
 
 ```
+Code Chunk for Chilko Survival Plot 
+
+```{r surv plot}
+
+
+CKO_survival <- survival_dat %>%
+  filter(stock == "CKO", BY >= 2014, BY <= 2020)
+
+
+CKO_survival %>% ggplot(aes(x = BY, y = survival*100))+
+  geom_line(linewidth = 1.0)+
+  # geom_point()+
+  scale_x_continuous(limits = c(2014, 2020),
+                     breaks = c(2014, 2015,2016,2017,2018,2019,2020))+
+  scale_y_continuous()+
+  labs(x = "Brood year", y = "Smolt to age 3 survival (%)")+
+  theme_classic()
+print(CKO_survival)
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "CKO_surv.png")
+
+```
+
