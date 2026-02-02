@@ -356,7 +356,7 @@ fit3 <- mod$sample(
 
 
 fit_list <- list(fit, fit3, fit2)
-names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "normal")
+names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "non-state space")
 
 saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
 
@@ -468,26 +468,35 @@ dat_with_cv <- purrr::map2(
 ) %>% 
   bind_rows()
 
+ind_pal <- c("#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#54278f")
+names(ind_pal) <- c("CHI", "HAR", "MSH", "SHU", "NIC", "CKO")
+
+
 mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
-  geom_ribbon(aes(ymin = q5, ymax = q95), alpha = 0.2, fill = "blue") +
-  geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "blue") +
-  geom_line(aes(y = median), color = "blue", linewidth = 1) +
+  geom_ribbon(aes(ymin = q5, ymax = q95), alpha = 0.2, fill = "gray40") +
+  geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3, fill = "gray40") +
+  geom_line(aes(y = median), linewidth = 1) +
+  geom_vline(xintercept = c(0, 0.1, 0.2, 0.3, 0.4), linetype = 2, alpha = 0.8) +
   geom_errorbar(data = dat_with_cv, 
                 aes(x = fmi, ymin = cyer_lower, ymax = cyer_upper),
-                width = 0, alpha = 0.4, color = "gray40") +
+                width = 0, alpha = 0.6) +
   geom_errorbarh(data = dat_with_cv,
                  aes(y = can_cyer, xmin = fmi_lower, xmax = fmi_upper),
-                 height = 0, alpha = 0.4, color = "gray40")  +
-  geom_point(data = dat, aes(y = can_cyer), alpha = 0.6) +
+                 height = 0, alpha = 0.6)  +
+  geom_point(data = dat, aes(y = can_cyer, fill = indicator), shape = 21, 
+             size = 1.5) +
   geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
   labs(
     x = "FMI",
-    y = "CYER") +
+    y = "CYER",
+    fill = "Indicator Stock") +
   lims(
     x = c(0.0, 0.5),
     y = c(0.0, 0.7)
   ) +
+  scale_fill_manual(values = ind_pal) +
   ggsidekick::theme_sleek() +
+  theme(legend.position = "top") +
   facet_wrap(~model)
 
 
