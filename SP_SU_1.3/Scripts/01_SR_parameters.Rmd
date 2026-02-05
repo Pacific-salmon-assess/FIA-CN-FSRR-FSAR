@@ -76,7 +76,7 @@ saveRDS(fit, "R//sp_su_1.3_fit.RDS")
 f_nic <- as.vector(extract(fit)[8])
 f_sp <- as.vector(extract(fit)[10])
 f_su <- as.vector(extract(fit)[9])
-alpha_nic <- as.vector(extract(fit)[3]) #need to set correct extraction number
+alpha_nic <- as.vector(extract(fit)[2]) #need to set correct extraction number
 alpha_sp <- as.vector(extract(fit)[12]) #need to set correct extraction number
 alpha_su <- as.vector(extract(fit)[11]) #need to set correct extraction number
 alpha_prime_sp <- as.vector(extract(fit)[16]) #need to set correct extraction number

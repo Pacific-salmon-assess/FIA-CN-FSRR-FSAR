@@ -72,7 +72,7 @@ dat <- esc_dat %>% filter(CU_ID %in% c("CK-04", "CK-08", "CK-10", "CK-12", "CK-1
   dplyr::select(Pop_Name = CU_ID, Year, TotalInfilled = SpnForAbd_Wild) %>% 
   filter(Year > 2008)
 
-dat[dat$Pop_Name == "CK-04" & dat$Year == 2024, 3] <- 200 #need to update this with the official escapement estimate for Birkenhead 2024
+dat[dat$Pop_Name == "CK-04" & dat$Year == 2024, 3] <- 89 #most up-to-date data
 
 source("R\\pop_cor.R")
 

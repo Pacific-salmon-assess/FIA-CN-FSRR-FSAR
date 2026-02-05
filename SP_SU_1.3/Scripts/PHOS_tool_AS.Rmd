@@ -13,22 +13,24 @@ library(tidyverse)
 library(cowplot)
 library(boot)
 library(ggpattern)
+library(patchwork)
+
+e_dat <- read.csv("SP_SU_1.3\\Data_in\\FlatFile_For_SalmonScanner_BySite.csv")
+sep_dat <- read.csv("SP_SU_1.3\\Data_in\\Fraser_Chinook_Releases_1975-2024.csv")
+
 ```
 
 
-```{r example data}
-#Please adjust the data inputs to values that are relevant to SEP... you could potentially change the ranges in abundances of smolts and spawners to vary on the log-scale instead
-#Chilko Survival Data - This is based on Brood year and includes all return ages 
+```{r data manip}
+#Chilko Return Rates - This is based on Brood year and includes all return ages 
 #Fed Fry 2014-2018
 # Min = .03 Mean = .11 Max .29 SD = .12
 #Smolt 2014-2019
 # Min = .21 Mean = .57 Max 1.22 SD = .43
 
-
-
-spawn <- seq(100, 20000, by = 100)
-smolt <- seq(10000, 200000, by = 10000) # 10k min as that is the min release we typically do #100k max as that is easy for mental math
-fry <- seq(10000, 200000, by = 10000)
+spawn <- seq(0, 10000, by = 50)
+smolt <- seq(0, 200000, by = 10000) # 10k min as that is the min release we typically do #100k max as that is easy for mental math
+fry <- seq(0, 200000, by = 10000)
 
 #can expand this code chunk to include calculations for fry survival
 phos_df <- expand.grid(x=spawn, y=smolt, z=fry) %>% 
@@ -52,22 +54,22 @@ Ccols <- c("Wild (0.00-0.02)" = "#4dac26",
            "Integrated-transition (0.19-0.47)" = "#f7f7f7", 
            "Integrated-hatchery (0.47-1.00)" = "#d01c8b")
 
-#y-axis ticks
-all_breaks_x = seq(10000, 200000, length.out = 20)
+#x-axis ticks
+all_breaks_x = seq(0, 200, length.out = 21)
 my_labels_x = rep("", length(all_breaks_x))
 my_labels_x[seq(1, length(my_labels_x), 4)] <- all_breaks_x[seq(1, length(my_labels_x), 4)]
 
-#x-axis ticks
-all_breaks_y = seq(100, 20000, by = 200)
+#y-axis ticks
+all_breaks_y = seq(0, 10, by = 0.5)
 my_labels_y = rep("", length(all_breaks_y))
-my_labels_y[seq(1, length(my_labels_y), 10)] <- all_breaks_y[seq(1, length(my_labels_y), 10)]
+my_labels_y[seq(1, length(my_labels_y), 2)] <- all_breaks_y[seq(1, length(my_labels_y), 2)]
 
 #lower pHOS for smolt releases
 p_l_phos_smolt <- phos_df %>%  mutate(l_phos_smolt = ifelse(l_phos_smolt <= 0.02, "Wild (0.00-0.02)",
                                           ifelse(l_phos_smolt > 0.02 & l_phos_smolt <= 0.19, "Integrated-wild (0.02-0.19)",
                                                  ifelse(l_phos_smolt > 0.19 & l_phos_smolt <= 0.47, "Integrated-transition (0.19-0.47)",
                                                         "Integrated-hatchery (0.47-1.00)")))) %>% 
-   ggplot(aes(x = smolt, y = spawn, z = l_phos_smolt, fill = l_phos_smolt))+
+   ggplot(aes(x = smolt/1000, y = spawn/1000, z = l_phos_smolt, fill = l_phos_smolt))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols,
                      name = "pHOS Designation",
@@ -82,13 +84,11 @@ p_l_phos_smolt <- phos_df %>%  mutate(l_phos_smolt = ifelse(l_phos_smolt <= 0.02
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks_y,
                       labels = my_labels_y)+
-   labs(y = "Total Spawner Abundance", 
-        x = "HO Smolt Release Abundance") + 
+   labs(y = "Total Spawner Abundance (1000s)", 
+        x = "Smolt Release Abundance (1000s)") + 
    theme_classic()+
    theme(legend.text = element_text(size = 8),
-         legend.title = element_text(size = 8),
-         legend.box = "horizontal",
-         legend.position = "bottom")
+         legend.title = element_text(size = 8))
 
 #upper pHOS for smolt releases
 p_u_phos_smolt <- phos_df %>%  mutate(u_phos_smolt = ifelse(u_phos_smolt <= 0.02, "Wild (0.00-0.02)",
@@ -96,7 +96,7 @@ p_u_phos_smolt <- phos_df %>%  mutate(u_phos_smolt = ifelse(u_phos_smolt <= 0.02
                                                  ifelse(u_phos_smolt > 0.19 & u_phos_smolt <= 0.47, 
                                                         "Integrated-transition (0.19-0.47)",
                                                         "Integrated-hatchery (0.47-1.00)")))) %>% 
-   ggplot(aes(x = smolt, y = spawn, z = u_phos_smolt, fill = u_phos_smolt))+
+   ggplot(aes(x = smolt/1000, y = spawn/1000, z = u_phos_smolt, fill = u_phos_smolt))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols,
                      name = "pHOS Designation",
@@ -111,8 +111,8 @@ p_u_phos_smolt <- phos_df %>%  mutate(u_phos_smolt = ifelse(u_phos_smolt <= 0.02
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks_y,
                       labels = my_labels_y)+
-   labs(y = "Total Spawner Abundance", 
-        x = "HO Smolt Release Abundance") + 
+   labs(y = "Total Spawner Abundance (1000s)", 
+        x = "Smolt Release Abundance (1000s)") + 
    theme_classic()+
    theme(legend.position = "none")
 
@@ -122,7 +122,7 @@ p_l_phos_fry <- phos_df %>%  mutate(l_phos_fry = ifelse(l_phos_fry <= 0.02, "Wil
                                           ifelse(l_phos_fry > 0.02 & l_phos_fry <= 0.19, "Integrated-wild (0.02-0.19)",
                                                  ifelse(l_phos_fry > 0.19 & l_phos_fry <= 0.47, "Integrated-transition (0.19-0.47)",
                                                         "Integrated-hatchery (0.47-1.00)")))) %>% 
-   ggplot(aes(x = fry, y = spawn, z = l_phos_fry, fill = l_phos_fry))+
+   ggplot(aes(x = fry/1000, y = spawn/1000, z = l_phos_fry, fill = l_phos_fry))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols,
                      name = "pHOS Designation",
@@ -137,8 +137,8 @@ p_l_phos_fry <- phos_df %>%  mutate(l_phos_fry = ifelse(l_phos_fry <= 0.02, "Wil
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks_y,
                       labels = my_labels_y)+
-   labs(y = "Total Spawner Abundance", 
-        x = "HO Fry Release Abundance") + 
+   labs(y = "Total Spawner Abundance (1000s)", 
+        x = "Fry Release Abundance (1000s)") + 
    theme_classic()+
    theme(legend.position = "none")
 
@@ -147,7 +147,7 @@ p_u_phos_fry <- phos_df %>%  mutate(u_phos_fry = ifelse(u_phos_fry <= 0.02, "Wil
                                           ifelse(u_phos_fry > 0.02 & u_phos_fry <= 0.19, "Integrated-wild (0.02-0.19)",
                                                  ifelse(u_phos_fry > 0.19 & u_phos_fry <= 0.47, "Integrated-transition (0.19-0.47)",
                                                         "Integrated-hatchery (0.47-1.00)")))) %>% 
-   ggplot(aes(x = fry, y = spawn, z = u_phos_fry, fill = u_phos_fry))+
+   ggplot(aes(x = fry/1000, y = spawn/1000, z = u_phos_fry, fill = u_phos_fry))+
    geom_raster(show.legend = c(fill = TRUE), interpolate = F)+
    scale_fill_manual(values = Ccols,
                      name = "pHOS Designation",
@@ -162,8 +162,8 @@ p_u_phos_fry <- phos_df %>%  mutate(u_phos_fry = ifelse(u_phos_fry <= 0.02, "Wil
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks_y,
                       labels = my_labels_y)+
-   labs(y = "Total Spawner Abundance", 
-        x = "HO Fry Release Abundance") + 
+   labs(y = "Total Spawner Abundance (1000s)", 
+        x = "Fry Release Abundance (1000s)") + 
    theme_classic()+
    theme(legend.position = "none")
 
@@ -193,12 +193,13 @@ get_legend <- function(plot, legend = NULL) {
 
 legend1 = get_legend(p_l_phos_smolt +  
                      theme(legend.text = element_text(size = 8),
-                           legend.title = element_text(size = 8),
-                           legend.box = "horizontal"))
+                           legend.title = element_text(size = 8)))
 
 
 pHOS <- ggdraw(plot_grid(p_l_phos_smolt + theme(axis.title.x = element_text(colour = "white"),
                                             axis.text.x = element_text(colour = "white"),
+                                            axis.title.y = element_text(colour = "white"),
+                                           axis.text.y = element_text(colour = "white"),
                                             plot.margin = unit(c(0, 0, 0, 0), "cm"),
                                             legend.position = "none"), 
                        p_l_phos_fry+ theme(axis.title.x = element_text(colour = "white"),
@@ -206,19 +207,192 @@ pHOS <- ggdraw(plot_grid(p_l_phos_smolt + theme(axis.title.x = element_text(colo
                                            axis.title.y = element_text(colour = "white"),
                                            axis.text.y = element_text(colour = "white"),
                                            plot.margin = unit(c(0, 0, 0, 0), "cm")),
-                       p_u_phos_smolt + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")),
-                       p_u_phos_fry + theme(axis.title.y = element_text(colour = "white"),
+                       p_u_phos_smolt + theme(axis.title.x = element_text(colour = "white"),
+                                              axis.text.x = element_text(colour = "white"),
+                                              axis.title.y = element_text(colour = "white"),
+                                              axis.text.y = element_text(colour = "white"),
+                                              plot.margin = unit(c(0, 0, 0, 0), "cm")),
+                       p_u_phos_fry + theme(axis.title.x = element_text(colour = "white"),
+                                            axis.text.x = element_text(colour = "white"),
+                                            axis.title.y = element_text(colour = "white"),
                                             axis.text.y = element_text(colour = "white"),
                                             plot.margin = unit(c(0, 0, 0, 0), "cm")),
                        ncol = 2, nrow = 2, axis = c("l"), align = c("hv"),
-                       labels = c("a", "b", "c", "d"),
+                       labels = c("b", "c", "e", "f"),
                        label_size = 8,
                        label_x = 0.95, label_y = 1.00, hjust = 1))
 
-pHOS_plot <- cowplot::plot_grid(pHOS, legend1,
-                              ncol = 1, nrow = 2, rel_heights = c(1, .1))
-
-ggsave(pHOS_plot, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\pHOS_tool.pdf")
-
-
 ```
+
+
+
+
+```{r context plots}
+
+edat <- e_dat %>% filter(Year %in% c(2014:2024)) %>% dplyr::select(year = Year, esc = TotalInfilled, CU = CU_ID, Pop_Name) %>% 
+   filter(CU %in% c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19", "CK-04", "CK-08", "CK-10", "CK-12", "CK-18")) %>% 
+   mutate(SMU = ifelse(CU %in% c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19"), "SU_1.3", "SP_1.3"))
+
+SP_1.3_plot <- edat %>% filter(SMU == "SP_1.3") %>% drop_na() %>% 
+   ggplot()+
+   geom_density(aes(x = esc/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 10),
+                      expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Spawner abundance\n(1000s)", y = "Frequency")+
+   theme_classic()+
+   coord_flip()
+   
+
+SU_1.3_plot <- edat %>% filter(SMU == "SU_1.3") %>% drop_na() %>% 
+   ggplot()+
+   geom_density(aes(x = esc/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 10),
+                      expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_y,
+                      labels = my_labels_y)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Spawner abundance\n(1000s)", y = "Frequency")+
+   theme_classic()+
+   coord_flip()
+
+SP_plots <- ggdraw(plot_grid(SP_1.3_plot + theme(axis.title.x = element_text(colour = "white"),
+                                                 axis.text.x = element_text(colour = "white"),
+                                                 plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                 legend.position = "none"), 
+                             SP_1.3_plot + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                 legend.position = "none"), 
+                        ncol = 1, nrow = 2, axis = c("l"), align = c("hv"),
+                        label_size = 8,
+                        labels = c("a", "d"),
+                        label_x = 0.95, label_y = 1.00, hjust = 1))
+
+SU_plots <- ggdraw(plot_grid(SU_1.3_plot + theme(axis.title.x = element_text(colour = "white"),
+                                                 axis.text.x = element_text(colour = "white"),
+                                                 plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                 legend.position = "none"), 
+                             SU_1.3_plot + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                 legend.position = "none"), 
+                        ncol = 1, nrow = 2, axis = c("l"), align = c("hv"),
+                        label_size = 8,
+                        labels = c("a", "d"),
+                        label_x = 0.95, label_y = 1.00, hjust = 1))
+
+h_dat <- sep_dat %>% filter(BROOD_YEAR %in% c(2014:2024)) %>% dplyr::select(year = BROOD_YEAR, rel_code = RELEASE_STAGE_NAME,
+                                                                   CU = REL_CU_INDEX, Pop_Name = STOCK_NAME, t_rel = TotalRelease) %>%
+   filter(CU %in% c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19", "CK-04", "CK-08", "CK-10", "CK-12", "CK-18")) %>% 
+   mutate(SMU = ifelse(CU %in% c("CK-05", "CK-06", "CK-09", "CK-11", "CK-14", "CK-19"), "SU_1.3", "SP_1.3")) %>% 
+   mutate(rel_stage = ifelse(str_detect(rel_code, "Fed"), "fry", 
+                             ifelse(str_detect(rel_code, "Unfed"), "fry",
+                                    ifelse(str_detect(rel_code, "Smolt 1+"), "smolt", NA)))) %>% drop_na()
+
+SP_1.3_smolt <- h_dat %>% filter(SMU == "SP_1.3" & rel_stage == "smolt") %>%
+   ggplot()+
+   geom_density(aes(x = t_rel/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 200),
+                      #expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Smolt Release Abundance\n(1000s)", y = "Frequency")+
+   theme_classic()
+
+SP_1.3_fry <- h_dat %>% filter(SMU == "SP_1.3" & rel_stage == "fry") %>%
+   ggplot()+
+   geom_density(aes(x = t_rel/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 200),
+                      #expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Fry Release Abundance\n(1000s)", y = "Frequency")+
+   theme_classic()
+
+SU_1.3_smolt <- h_dat %>% filter(SMU == "SU_1.3" & rel_stage == "smolt") %>%
+   ggplot()+
+   geom_density(aes(x = t_rel/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 200),
+                      #expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Smolt Release Abundance\n(1000s)", y = "Frequency")+
+   theme_classic()
+
+SU_1.3_fry <- h_dat %>% filter(SMU == "SU_1.3" & rel_stage == "fry") %>%
+   ggplot()+
+   geom_density(aes(x = t_rel/1000), fill = "grey")+
+   scale_x_continuous(limits = c(0, 200),
+                      #expand = c(0,0),
+                      n.breaks = 21,
+                      breaks = all_breaks_x,
+                      labels = my_labels_x)+
+   scale_y_continuous(expand = c(0,0))+
+   labs(x = "Fry Release Abundance\n(1000s)", y = "Frequency")+
+   theme_classic()
+
+SP_enh_plots <- ggdraw(plot_grid(SP_1.3_smolt + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                      legend.position = "none"), 
+                                 SP_1.3_fry + theme(axis.title.y = element_text(colour = "white"),
+                                                    axis.text.y = element_text(colour = "white"),
+                                                    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                    legend.position = "none"), 
+                        ncol = 2, nrow = 1, axis = c("l"), align = c("hv"),
+                        label_size = 8,
+                        labels = c("h", "i"),
+                        label_x = 0.95, label_y = 1.00, hjust = 1))
+
+SU_enh_plots <- ggdraw(plot_grid(SU_1.3_smolt + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                      legend.position = "none"), 
+                                 SU_1.3_fry + theme(axis.title.y = element_text(colour = "white"),
+                                                    axis.text.y = element_text(colour = "white"),
+                                                    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+                                                    legend.position = "none"), 
+                        ncol = 2, nrow = 1, axis = c("l"), align = c("hv"),
+                        label_size = 8,
+                        labels = c("h", "i"),
+                        label_x = 0.95, label_y = 1.00, hjust = 1))
+
+pHOS_tool_SPa <- cowplot::plot_grid(SP_plots,pHOS,
+                              ncol = 2, nrow = 1,
+                              axis = c("l"), align = c("hv"),
+                              rel_widths = c(0.5,1))
+
+pHOS_tool_SPb <- cowplot::plot_grid(legend1,SP_enh_plots,
+                              ncol = 2, nrow = 1,
+                              axis = c("l"), align = c("hv"),
+                              rel_widths = c(0.5,1))
+
+pHOS_tool_SP <- cowplot::plot_grid(pHOS_tool_SPa, pHOS_tool_SPb,
+                                   ncol = 1, nrow = 2,
+                                   axis = c("l"), align = c("hv"),
+                                   rel_heights = c(1,0.5))
+
+#ggsave(pHOS_tool_SP, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\pHOS_tool_SP.pdf")
+
+pHOS_tool_SUa <- cowplot::plot_grid(SU_plots,pHOS,
+                              ncol = 2, nrow = 1,
+                              axis = c("l"), align = c("hv"),
+                              rel_widths = c(0.5,1))
+
+pHOS_tool_SUb <- cowplot::plot_grid(legend1,SU_enh_plots,
+                              ncol = 2, nrow = 1,
+                              axis = c("l"), align = c("hv"),
+                              rel_widths = c(0.5,1))
+
+pHOS_tool_SU <- cowplot::plot_grid(pHOS_tool_SUa, pHOS_tool_SUb,
+                                   ncol = 1, nrow = 2,
+                                   axis = c("l"), align = c("hv"),
+                                   rel_heights = c(1,0.5))
+
+#ggsave(pHOS_tool_SU, height = 6.5, width = 6.5, units = "in", filename = "SP_SU_1.3\\Figures\\pHOS_tool_SU.pdf")
+```
+
+
