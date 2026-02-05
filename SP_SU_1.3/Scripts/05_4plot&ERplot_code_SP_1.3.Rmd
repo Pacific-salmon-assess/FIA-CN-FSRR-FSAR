@@ -232,17 +232,17 @@ geom_hline(yintercept = 0.44, colour = "red",  linewidth = 0.8) +
 #   vjust = 1.0,
 #   size = 3.5,
 #   parse = TRUE
-# ) +
-geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8, linetype = "dashed") +
-# geom_text(
-#   data = data.frame(x = 2024, y = 0.10), # Insert finalized lower fishery reference point  
-#   aes(x = x, y = y, label = "FRP-L"),
-#   colour = "red",
-#   hjust = 1.1,
-#   vjust = -0.3,
-#   size = 3.5,
-#   parse = TRUE
-# ) +
+# # ) +
+# geom_hline(yintercept = 0.10, colour = "red", linewidth = 0.8, linetype = "dashed") +
+# # geom_text(
+# #   data = data.frame(x = 2024, y = 0.10), # Insert finalized lower fishery reference point  
+# #   aes(x = x, y = y, label = "FRP-L"),
+# #   colour = "red",
+# #   hjust = 1.1,
+# #   vjust = -0.3,
+# #   size = 3.5,
+# #   parse = TRUE
+# # ) +
 theme_classic()
 print(ER)
 
