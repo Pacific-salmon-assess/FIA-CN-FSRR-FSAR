@@ -83,7 +83,7 @@ nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU) %>% filter
 
 #baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Summer 1.3 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
 old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
-
+wa_dat <- old_wa
 source("R\\srep_wa_analysis_predict.R")
 
 nu_srep <- srep_est(nu_wa, old_wa)

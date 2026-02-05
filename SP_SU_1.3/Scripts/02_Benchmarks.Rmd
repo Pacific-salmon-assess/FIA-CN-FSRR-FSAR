@@ -42,7 +42,7 @@ This code chunk uses the Parken Habitat Model to estimate SREP for each SP and S
 ###Estimate srep from watershed areas for populations without beta estimates###
 nu_wa_dat <- read.csv("data\\CN1.3_watershed_areas.csv")
 nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU)
-
+wa_dat <- old_wa
 source("R\\srep_wa_analysis_predict.R") #R script that runs the Parken Habitat Model and produces a posterior prediction for each new watershed (1 column per watershed)
 
 
