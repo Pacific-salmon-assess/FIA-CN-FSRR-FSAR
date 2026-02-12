@@ -49,6 +49,10 @@ wsp_cu_years <- read.csv(
 survival_dat <-read.csv(
   here("SP_SU_1.3", "Data_in", "CKO_survival_dat_dec_2025.csv")
 )
+
+pHOS_dat <-read.csv(
+  here("SP_SU_1.3", "Data_in", "CKO_pHOS_feb_2025.csv")
+)
 ```
 
 Code chunk to create the Summer 1.3 recruitment plot
@@ -555,4 +559,20 @@ print(CKO_survival)
 ggsave(height = 3.5, width = 4.5, units = "in", filename = "CKO_surv.png")
 
 ```
+Code Chunk for Chilko pHOS Plot 
 
+```{r surv plot}
+
+
+pHOS_dat %>% ggplot(aes(x = return_year, y = afc_rate))+
+  geom_line(linewidth = 1.0)+
+  geom_point()+
+  scale_x_continuous(limits = c(2019, 2024),
+                     breaks = c(2019,2020, 2021,2022,2023,2024))+
+  labs(x = "Return Year", y = "pHOS")+
+  theme_classic()
+print(pHOS_dat)
+
+ggsave(height = 3.5, width = 4.5, units = "in", filename = "CKO_pHOS.png")
+
+```
