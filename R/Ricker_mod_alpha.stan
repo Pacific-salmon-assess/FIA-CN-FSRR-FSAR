@@ -43,7 +43,7 @@ for(t in 2:N){
 model {
   lrs[1] ~ normal(mu[1], sigma);
   for(i in 2:N)lrs[i] ~ normal(mu[i], sigma_AR);
-  Smax ~ normal(5e3,1e4); //change this to something
+  Smax ~ normal(10000,4000); 
   alpha ~ normal(1,1);
   gamma ~ normal(0, 1);
   surv_est ~ normal(0, 1);

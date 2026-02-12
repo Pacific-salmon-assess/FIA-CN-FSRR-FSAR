@@ -72,7 +72,7 @@ dat <- esc_dat %>% filter(CU_ID %in% c("CK-04", "CK-08", "CK-10", "CK-12", "CK-1
   dplyr::select(Pop_Name = CU_ID, Year, TotalInfilled = SpnForAbd_Wild) %>% 
   filter(Year > 2008)
 
-dat[dat$Pop_Name == "CK-04" & dat$Year == 2024, 3] <- 200 #need to update this with the official escapement estimate for Birkenhead 2024
+dat[dat$Pop_Name == "CK-04" & dat$Year == 2024, 3] <- 89 #most up-to-date data
 
 source("R\\pop_cor.R")
 
@@ -84,7 +84,7 @@ nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU) %>% filter
 
 #baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Spring 1.3 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
 old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
-
+wa_dat <- old_wa
 source("R\\srep_wa_analysis_predict.R")
 
 nu_srep <- srep_est(nu_wa, old_wa)
@@ -195,25 +195,25 @@ This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ER
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_pess.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_pess.csv")
 # 
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp-impl.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp-impl.csv")
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp-impl.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp-impl.csv")
 
-#uncomment to run the simulation
-t <- Sys.time()
-for(k in 1:10){
-  for(u in 1:nrow(simPar)){
-    genericRecoverySim(
-      simPar = simPar[u,],
-      cuPar = CUPar,
-      srDat = NULL,
-      ricPars = sim_post_vars[[k]],
-      nTrials = 500, #number of trials used to produce the plots
-      #nTrials = 10, #good number of iterations for testing the simulation
-      cuCustomCorrMat = pcor,
-      outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
-    }
-}
-Sys.time() - t
+# #uncomment to run the simulation
+# t <- Sys.time()
+# for(k in 1:10){
+#   for(u in 1:nrow(simPar)){
+#     genericRecoverySim(
+#       simPar = simPar[u,],
+#       cuPar = CUPar,
+#       srDat = NULL,
+#       ricPars = sim_post_vars[[k]],
+#       nTrials = 500, #number of trials used to produce the plots
+#       #nTrials = 10, #good number of iterations for testing the simulation
+#       cuCustomCorrMat = pcor,
+#       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
+#     }
+# }
+# Sys.time() - t
 
 ```
 

@@ -17,6 +17,9 @@ library(ggpattern)
 #esc data for appending behind simulation data for calculation of trends
 esc_dat <- read.csv("SP_SU_1.3\\Data_in\\sp_su_1.3_escape_series.csv")
 fit <- summary(readRDS("R\\sp_su_1.3_fit.RDS"))
+
+ER_post <- readRDS("data\\fmi_cyer_posterior_predictions.rds") %>% 
+   filter(fmi %in% c(0, 0.1, 0.2, 0.3, 0.4))
 ```
 
 
@@ -27,8 +30,8 @@ This code chunk retrieves the simulation results from the folders and combines t
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
 
-# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
-# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
+ # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
+ # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
 # 
 simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
 CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
@@ -279,7 +282,7 @@ sim_sum_ER %>% filter(iteration %in% seq(1, 500, by = 5) & CU == 4 & year > 60 &
 
 # ggsave(height = 5, width = 5, units = "in", filename = "ER_opti_su.pdf")
 # ggsave(height = 5, width = 5, units = "in", filename = "ER_pess_su.pdf")
- ggsave(height = 5, width = 5, units = "in", filename = "ER-impl_su.pdf")
+# ggsave(height = 5, width = 5, units = "in", filename = "ER-impl_su.pdf")
 
 ```
 

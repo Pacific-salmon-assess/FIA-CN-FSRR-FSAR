@@ -83,7 +83,7 @@ nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU) %>% filter
 
 #baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Summer 1.3 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
 old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
-
+wa_dat <- old_wa
 source("R\\srep_wa_analysis_predict.R")
 
 nu_srep <- srep_est(nu_wa, old_wa)
@@ -192,29 +192,29 @@ This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ER
 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
-
+# 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
+# 
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
 
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
-
-#uncomment to run the simulation
-t <- Sys.time()
-for(k in 1:10){
-  for(u in 1:nrow(simPar)){
-    genericRecoverySim(
-      simPar = simPar[u,],
-      cuPar = CUPar,
-      srDat = NULL,
-      ricPars = sim_post_vars[[k]],
-      nTrials = 500, #number of trials used to produce the plots
-      #nTrials = 10, #good number of iterations for testing the simulation
-      cuCustomCorrMat = pcor,
-      outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
-    }
-}
-Sys.time() - t
+# #uncomment to run the simulation
+# t <- Sys.time()
+# for(k in 1:10){
+#   for(u in 1:nrow(simPar)){
+#     genericRecoverySim(
+#       simPar = simPar[u,],
+#       cuPar = CUPar,
+#       srDat = NULL,
+#       ricPars = sim_post_vars[[k]],
+#       nTrials = 500, #number of trials used to produce the plots
+#       #nTrials = 10, #good number of iterations for testing the simulation
+#       cuCustomCorrMat = pcor,
+#       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
+#     }
+# }
+# Sys.time() - t
 
 ```
 
