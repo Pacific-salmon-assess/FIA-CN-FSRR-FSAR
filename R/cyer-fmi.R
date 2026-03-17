@@ -250,10 +250,11 @@ saveRDS(dat, here::here("data", "cyer_fmi_dat.rds"))
 dat <- readRDS(here::here("data", "cyer_fmi_dat.rds")) %>%
   ungroup() %>% 
   mutate(
-    sd_fmi = fmi * 0.1, #converts CV to SD to pass to BRMS
+    fmi_centered = fmi - mean(fmi),
+    # sd_fmi = fmi * 0.1, #converts CV to SD to pass to BRMS
     logit_fmi = qlogis(fmi),
     logit_fmi_centered = logit_fmi - mean(logit_fmi),
-    sd_logit_fmi = sd_fmi / (fmi * (1 - fmi))
+    # sd_logit_fmi = sd_fmi / (fmi * (1 - fmi))
   )
 
 
@@ -287,27 +288,29 @@ stan_data <- list(
   N_indicators = length(unique(dat$indicator)),
   indicator = as.integer(factor(dat$indicator)),
   can_cyer_obs = dat$can_cyer,
-  logit_fmi_obs = dat$logit_fmi_centered,
+  # logit_fmi_obs = dat$logit_fmi_centered,
   fmi_obs = dat$fmi,  # proportion scale
   mean_cv = mean_cv # single CV for both variables
 )
 
 
 # state space version
+# switch to no logit transform on predictor Mar 2026 after reviews; also means
+# predictor is not centered
 mod <- cmdstan_model(
-  here::here("R", "stan", "fmi_cyer_ss.stan")
+  here::here("R", "stan", "fmi_cyer_ss_v2.stan")
 )
 
 # informative init values required for low CV, use here as well for consistency
 init_fn <- function(chain_id) {
   # Add chain-specific jitter
   list(
-    intercept = -1.5 + rnorm(1, 0, 0.3),
-    slope = 0.7 + rnorm(1, 0, 0.2),
+    intercept = -2.75 + rnorm(1, 0, 0.5),   # Center on prior mean ± some noise
+    slope = 5.5 + rnorm(1, 0, 0.75),        # Center on prior mean ± some noise
     sigma_indicator = abs(0.3 + rnorm(1, 0, 0.15)),
     phi = abs(8 + rnorm(1, 0, 2)),
     z_indicator = rnorm(stan_data$N_indicators, 0, 0.5),
-    logit_fmi_true_centered = stan_data$logit_fmi_obs + 
+    fmi_true = stan_data$fmi_obs + 
       rnorm(stan_data$N, 0, 0.02),
     can_cyer_logit_true = qlogis(stan_data$can_cyer_obs) + 
       rnorm(stan_data$N, 0, 0.02)
@@ -323,10 +326,12 @@ fit <- mod$sample(
   adapt_delta = 0.97
 )
 
+fit$summary(variables = c("intercept", "slope", "sigma_indicator", "phi"))
+
 
 # standard version
 mod2 <- cmdstan_model(
-  here::here("R", "stan", "fmi_cyer.stan")
+  here::here("R", "stan", "fmi_cyer_v2.stan")
 )
 
 fit2 <- mod2$sample(
@@ -337,30 +342,52 @@ fit2 <- mod2$sample(
   iter_sampling = 2000,
   adapt_delta = 0.97
 )
+fit2$summary(variables = c("intercept", "slope", "sigma_indicator", "phi"))
 
 
-# state space version with reduced CV
+# state space version with reduced CV (even more sensitive)
 stan_data3 <- stan_data
 stan_data3$mean_cv <- 0.1
+
+init_fn_tight <- function(chain_id) {
+  # Initialize latent FMI VERY close to observations (CV=0.1 is tight!)
+  fmi_init <- stan_data3$fmi_obs + rnorm(stan_data3$N, 0, 0.003)  # Much smaller!
+  
+  # Ensure within bounds
+  fmi_init <- pmax(0.001, pmin(0.999, fmi_init))
+  
+  list(
+    intercept = -2.75,  
+    slope = 5.5,        
+    sigma_indicator = 0.2,
+    phi = 10,
+    z_indicator = rep(0, stan_data3$N_indicators),
+    fmi_true = fmi_init,  # Very close to observations
+    can_cyer_logit_true = qlogis(stan_data3$can_cyer_obs) + 
+      rnorm(stan_data3$N, 0, 0.005)  # Much smaller!
+  )
+}
 
 fit3 <- mod$sample(
   data = stan_data3,
   chains = 4,
   parallel_chains = 4,
-  iter_warmup = 2000,
+  iter_warmup = 3000,      # Longer warmup
   iter_sampling = 2000,
-  adapt_delta = 0.97,
-  max_treedepth = 12,
-  init = init_fn  # Use custom initialization
+  adapt_delta = 0.98,     # Much higher (was 0.97)
+  max_treedepth = 13,      # Higher (was 12)
+  init = init_fn_tight,
+  refresh = 100
 )
+fit3$summary(variables = c("intercept", "slope", "sigma_indicator", "phi"))
 
 
 fit_list <- list(fit, fit3, fit2)
 names_list <- c("state space - 0.3 CV", "state space - 0.1 CV", "non-state space")
 
-saveRDS(fit_list, here::here("data", "fmi_cyer_fits.rds"))
+saveRDS(fit_list, here::here("data", "fmi_cyer_fits_v2.rds"))
 
-fit_list <- readRDS(here::here("data", "fmi_cyer_fits.rds"))
+fit_list <- readRDS(here::here("data", "fmi_cyer_fits_v2.rds"))
 
 
 
@@ -390,8 +417,8 @@ sum_dat <- purrr::map2(
 
 # posterior predictions across range of fmi values
 fmi_new <- seq(0.0, 0.5, by = 0.01)
-logit_fmi_new <- qlogis(fmi_new)
-logit_fmi_new_centered <- logit_fmi_new - mean(dat$logit_fmi)
+# logit_fmi_new <- qlogis(fmi_new)
+# logit_fmi_new_centered <- logit_fmi_new - mean(dat$logit_fmi)
 
 N_new <- length(fmi_new)
 
@@ -410,7 +437,7 @@ pred_list <- purrr::map2(
     for (i in 1:n_draws) {
       for (j in 1:N_new) {
         # Linear predictor on logit scale
-        mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new_centered[j] 
+        mu_ij <- intercept_draws[i] + slope_draws[i] * fmi_new[j] 
         
         # Convert to probability scale
         mu_prob <- plogis(mu_ij)
@@ -427,8 +454,8 @@ pred_list <- purrr::map2(
     # Summarize preds
     pred_dat <- tibble(
       fmi = fmi_new,
-      logit_fmi = logit_fmi_new,
-      logit_fmi_centered = logit_fmi_new_centered,
+      # logit_fmi = logit_fmi_new,
+      # logit_fmi_centered = logit_fmi_new_centered,
       mean = colMeans(preds),
       median = apply(preds, 2, median),
       sd = apply(preds, 2, sd),
@@ -492,7 +519,7 @@ mod_comp_ribbon <- ggplot(pred_summary, aes(x = fmi)) +
     fill = "Indicator Stock") +
   lims(
     x = c(0.0, 0.5),
-    y = c(0.0, 0.7)
+    y = c(0.0, 0.9)
   ) +
   scale_fill_manual(values = ind_pal) +
   ggsidekick::theme_sleek() +
@@ -538,413 +565,4 @@ saveRDS(
 )
 
 
-##### (INCOMPLETE) ######
-#### UPDATE TO UNCENTER BEFORE USING ######
-
-## as above but with stock-specific predictions 
-
-# Extract indicator-specific random effects
-indicator_names <- unique(dat$indicator)
-N_indicators <- length(indicator_names)
-
-indicator_effects_draws <- draws %>%
-  select(starts_with("indicator_effects[")) %>%
-  as.matrix()
-
-# Prepare observed data with indicator mapping
-
-# Generate predictions for each indicator stock
-predictions_by_indicator <- list()
-
-for (ind in 1:N_indicators) {
-  pred_matrix <- matrix(NA, nrow = n_draws, ncol = N_new)
-  
-  for (i in 1:n_draws) {
-    # Get this indicator's random effect
-    ind_effect <- indicator_effects_draws[i, ind]
-    
-    for (j in 1:N_new) {
-      # Linear predictor on logit scale
-      mu_ij <- intercept_draws[i] + slope_draws[i] * logit_fmi_new[j] + ind_effect
-      
-      # Add process error
-      logit_pred <- rnorm(1, mu_ij, 1 / sqrt(phi_draws[i]))
-      
-      # Back-transform to proportion scale
-      pred_matrix[i, j] <- plogis(logit_pred)
-    }
-  }
-  
-  # Summarize predictions for this indicator
-  predictions_by_indicator[[ind]] <- tibble(
-    indicator = indicator_names[ind],
-    fmi = fmi_new,
-    logit_fmi = logit_fmi_new,
-    mean = colMeans(pred_matrix),
-    median = apply(pred_matrix, 2, median),
-    sd = apply(pred_matrix, 2, sd),
-    q5 = apply(pred_matrix, 2, quantile, probs = 0.05),
-    q25 = apply(pred_matrix, 2, quantile, probs = 0.25),
-    q75 = apply(pred_matrix, 2, quantile, probs = 0.75),
-    q95 = apply(pred_matrix, 2, quantile, probs = 0.95)
-  )
-}
-
-# Combine all predictions
-all_predictions <- bind_rows(predictions_by_indicator)
-
-ggplot() +
-  geom_line(data = all_predictions, 
-            aes(x = fmi, y = median, color = indicator),
-            linewidth = 1) +
-  geom_ribbon(data = all_predictions, 
-              aes(x = fmi, ymin = q25, ymax = q75, fill = indicator),
-              alpha = 0.15) +
-  geom_point(data = fitted_summary, 
-             aes(x = fmi_prop, y = can_cyer, color = indicator),
-             size = 2.5, alpha = 0.7) +
-  labs(
-    x = "Foreign Marine Index (FMI)",
-    y = "Canadian Exploitation Rate",
-    title = "All Indicator Stocks: Predictions and Observations",
-    subtitle = "Lines = median predictions, ribbons = 50% credible intervals",
-    color = "Indicator",
-    fill = "Indicator"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(size = 14, face = "bold"),
-    legend.position = "right"
-  )
-
-
-## BRMS VERSION ----------------------------------------------------------------
-
-# replaced with Stan version above to account for observation error in both CYER
-# and FMI
-
-# fit hiearchical slopes model to fmi data with intercept fixed at 0
-library(brms)
-library(DHARMa)
-
-
-# random ints
-fit_brms1 <- brm(
-  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | indicator),
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
-            prior(normal(0, 1), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 2000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-  )
-fit_brms1b <- brm(
-  can_cyer ~ logit_fmi_centered + (1 | indicator), 
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
-            prior(normal(0, 1), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 2000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-
-
-# random slopes and ints
-fit_brms2 <- brm(
-  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (me(logit_fmi_centered, sd_logit_fmi) | indicator),
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 5), class = "b"),  # Priors for fixed effects
-            prior(exponential(1), class = "sd"),
-            prior(normal(-1.68, 1), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-fit_brms2b <- brm(
-  can_cyer ~ logit_fmi_centered + (logit_fmi_centered | indicator), 
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(prior(normal(1, 1), class = "b"),  # Priors for fixed effects
-            prior(exponential(1), class = "sd"),
-            prior(normal(-1.68, 1), class = "Intercept"),  # Prior for intercept
-            prior(exponential(1), class = "phi")),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-
-
-# constrained to be nearly through 0 with strong informative prior
-fit_brms3 <- brm(
-  can_cyer ~ me(logit_fmi_centered, sd_logit_fmi) + (1 | indicator),
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(
-    # very informative prior on the fixed‐effect intercept
-    # equal to mean(dat$logit_fmi)
-    prior(normal(-1.68, 0.25), class = "Intercept"),
-    # weakly informative prior on the fixed slope
-    prior(normal(1, 0.25), class = "b"),
-    # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(1), class = "sd", group = "indicator",
-          coef = "Intercept"),
-    # prior on the Beta‐precision
-    prior(exponential(1), class = "phi")
-  ),
-  chains = 4, cores = 4, iter = 3000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-  )
-
-fit_brms3b <- brm(
-  can_cyer ~ logit_fmi_centered + (1 | indicator), 
-  data = dat,
-  family = Beta(link = "logit"),  # Beta regression
-  prior = c(
-    # very informative prior on the fixed‐effect intercept
-    # equal to mean(dat$logit_fmi)
-    prior(normal(-1.68, 0.25), class = "Intercept"),
-    # weakly informative prior on the fixed slope
-    prior(normal(1, 0.25), class = "b"),
-    # very tight zero‐centered prior on the SD of the random intercept
-    prior(exponential(1), class = "sd", group = "indicator",
-          coef = "Intercept"),
-    # prior on the Beta‐precision
-    prior(exponential(1), class = "phi")
-  ),
-  chains = 4, cores = 4, iter = 4000, warmup = 1000,
-  control = list(adapt_delta = 0.95)
-)
-
-
-
-pred_dat <- expand.grid(
-  indicator = unique(dat$indicator),
-  fmi = seq(0.01, 0.5, length.out = 30),
-  sd_logit_fmi = median(dat$sd_logit_fmi)
-)
-pred_dat$logit_fmi <- qlogis(pred_dat$fmi)
-pred_dat$logit_fmi_centered <- pred_dat$logit_fmi - mean(dat$logit_fmi)
-
-fit_list <- list(
-  fit_brms1, 
-  fit_brms1b, 
-  fit_brms2, 
-  fit_brms2b,
-  fit_brms3,
-  fit_brms3b
-)
-
-mean_dat <- purrr::map2(
-  fit_list,
-  c("rand_i_me", 
-    "rand_i", 
-    "rand_s_me",
-    "rand_s",
-    "rand_i_informative_me", 
-    "rand_i_informative"
-    ),
-  function (x, y) {
-    pred1 <- predict(x, newdata = pred_dat)
-    pred_dat2 <- cbind(pred_dat, pred1)
-    
-    global_pred <- pred_dat %>% 
-      filter(indicator == "SHU")
-    pred_fixed <- predict(x, newdata = global_pred, re.form = NA)
-    global_pred2 <- cbind(global_pred, pred_fixed) %>% 
-      mutate(indicator = "global")
-  
-    real_pred <- rbind(pred_dat2, global_pred2) %>% 
-      mutate(model = y)
-    
-    # as above but on link scale
-    pred1_link <- fitted(x, newdata = pred_dat, scale = "linear")
-    pred_dat2_link <- cbind(pred_dat, pred1_link)
-    
-    pred_fixed_link <- fitted(x, newdata = global_pred, 
-                         re.form = NA, scale = "linear")
-    global_pred2_link <- cbind(global_pred, pred_fixed_link) %>% 
-      mutate(indicator = "global")
-    
-    link_pred <- rbind(pred_dat2_link, global_pred2_link) %>% 
-      mutate(model = y)
-    
-    real_pred %>% 
-      mutate(
-        link_est = link_pred$Estimate
-      )
-  }
-) %>% 
-  bind_rows() %>% 
-  mutate(
-    model = factor(
-      model, 
-      levels = c(
-        "rand_i", 
-        "rand_i_me", 
-        "rand_s", 
-        "rand_s_me", 
-        "rand_i_informative", 
-        "rand_i_informative_me"
-    ))
-  )
-
-pred_cyer_ribbon <- fmi_cyer_cor +
-  geom_line(data = mean_dat %>% filter(!indicator == "global"),
-            aes(x = fmi, y = Estimate, group = indicator),
-            linetype = 2) +
-  geom_line(data = mean_dat %>% filter(indicator == "global"),
-            aes(x = fmi, y = Estimate)) +
-  geom_ribbon(data = mean_dat %>% filter(indicator == "global"),
-              aes(x = fmi, ymin = Q2.5, ymax = Q97.5), alpha = 0.2) +
-  geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
-  facet_wrap(~model, ncol = 2) +
-  labs(y = "Predicted CWT-based CYER", x = "FMI-based ER") +
-  theme(legend.position = "top")
-
-pred_cyer_ribbon_logit <- fmi_cyer_cor_logit +
-  geom_line(data = mean_dat %>% filter(!indicator == "global"),
-            aes(x = logit_fmi, y = link_est, group = indicator),
-            linetype = 2) +
-  geom_line(data = mean_dat %>% filter(indicator == "global"),
-            aes(x = logit_fmi, y = link_est)) +
-  geom_abline(aes(intercept = 0, slope = 1), colour = "red") +
-  facet_wrap(~model, ncol = 2) +
-  labs(y = "Predicted CWT-based CYER", x = "FMI-based ER") +
-  theme(legend.position = "top")
-  
-
-pred_list <- purrr::map2(
-  fit_list,
-  c("rand_i_me", 
-    "rand_i", 
-    "rand_s_me",
-    "rand_s",
-    "rand_i_informative_me", 
-    "rand_i_informative"
-  ),
-  function (x, y) {
-    new_data <- data.frame(fmi = c(0.05, 0.3)) %>%  # Example new fmi values
-      mutate(
-        logit_fmi = qlogis(fmi),
-        sd_logit_fmi = median(dat$sd_logit_fmi),
-        logit_fmi_centered = logit_fmi - mean(dat$logit_fmi)
-      )
-
-    pp <- posterior_predict(
-      x, newdata = new_data, allow_new_levels = TRUE
-    )
-    data.frame(
-      exp_rate = rep(new_data$fmi, each = nrow(pp)),
-      est_cyer = as.numeric(pp),
-      model = y
-    ) %>% 
-      group_by(exp_rate) %>% 
-      mutate(
-        median_cyer = median(est_cyer)
-      )
-  }
-)
-
-
-dd <- bind_rows(pred_list) %>% 
-  mutate(
-    model = factor(
-      model, 
-      levels = c(
-        "rand_i", 
-        "rand_i_me", 
-        "rand_s", 
-        "rand_s_me", 
-        "rand_i_informative", 
-        "rand_i_informative_me"
-      ))
-  )
-pred_cyer_ridges <- ggplot(dd) +
-  # ggridges::geom_density_ridges() +
-  ggridges::stat_density_ridges(
-    aes(x = est_cyer, y = model),
-    quantile_lines = TRUE,
-    quantiles = 2,  # This gives you the median (50th percentile)
-    alpha = 0.7
-  ) +
-  geom_vline(data = dd, 
-             aes(xintercept = exp_rate), colour = "red") +
-  facet_wrap(~exp_rate) +
-  labs(x = "Predicted CWT-based CYER", y = "Model") +
-  ggsidekick::theme_sleek()
-
-pred_cyer_violin <- ggplot() +
-  geom_violin(data = dd, aes(x = est_cyer, y = model), draw_quantiles = 0.5) +
-  geom_vline(data = dd,
-             aes(xintercept = exp_rate), colour = "red") +
-  facet_wrap(~exp_rate, ncol = 1) +
-  labs(x = "Predicted CWT-based CYER", y = "Model") +
-  ggsidekick::theme_sleek()
-
-
-# sim_dharma <- createDHARMa(
-#   simulatedResponse = posterior_predict(fit_brms2, nsim = 1000) %>% t(),  # Simulate responses
-#   observedResponse = dat$can_er,  # Use actual response values
-#   fittedPredictedResponse = fitted(fit_brms2)[,1]  # Extract fitted values
-# )
-# plot(sim_dharma)  # Check residuals
-
-
-calc_pit <- function(y, posterior_pred) {
-  # Get the proportion of posterior samples that are less than or equal to the observed value
-  n_obs <- length(y)
-  pit_residuals <- numeric(n_obs)
-  
-  for (i in 1:n_obs) {
-    # Calculate pmin and pmax for each observation
-    y_prime <- posterior_pred[i, ]  # posterior predictions for i-th observation
-    pmin_i <- mean(y_prime < y[i])
-    pmax_i <- mean(y_prime <= y[i])
-    
-    # Generate the PIT residuals as a random draw from uniform(pmin, pmax)
-    pit_residuals[i] <- runif(1, pmin_i, pmax_i)
-  }
-  
-  return(pit_residuals)
-}
-
-# check pit resid
-purrr::map2(
-  fit_list,
-  c("rand_i_me", 
-    "rand_i", 
-    "rand_s_me",
-    "rand_s",
-    "rand_i_informative_me", 
-    "rand_i_informative"),
-  function (x, y) {
-    pp <- posterior_predict(x, nsim = 1000) %>% t()
-    pit_residuals <- calc_pit(y = dat$can_er, posterior_pred = pp)
-    qqplot(qunif(ppoints(length(pit_residuals))), pit_residuals,
-           main = paste("QQ-plot of PIT Residuals Model ", y))
-    abline(0, 1)
-  }
-)
-
-png(here::here("figs", "pred_cyer_ribbon.png"), height = 6, 
-    width = 7.5, units = "in", res = 250)
-pred_cyer_ribbon
-dev.off()
-
-png(here::here("figs", "pred_cyer_ribbon_logit.png"), height = 6, 
-    width = 7.5, units = "in", res = 250)
-pred_cyer_ribbon_logit
-dev.off()
-
-png(here::here("figs", "cyer-ts.png"), height = 4.5, 
-    width = 7.5, units = "in", res = 250)
-pred_cyer_ridges
-dev.off()
-
-png(here::here("figs", "cyer-ts-violin.png"), height = 4.5, 
-    width = 7.5, units = "in", res = 250)
-pred_cyer_violin
-dev.off()
 
