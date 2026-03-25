@@ -1,4 +1,6 @@
 
+set.seed(1352)
+
 srep_est <- function(nu_wa, old_wa){
   #read in data to run Stan model
   wa_dat <- old_wa
@@ -13,7 +15,7 @@ srep_est <- function(nu_wa, old_wa){
   
   #running the Stan model
   fit_srep <- stan(file = "R/srep_wa.stan", data = dat, chains=6,
-              iter=10000, cores=6, thin = 1,
+              iter=10000, cores=6, thin = 1, seed = 1352,
               control=list("max_treedepth"=15,"adapt_delta"=0.8),
               pars=c("slope", "intercept", "sigma", "nu_srep"))
   

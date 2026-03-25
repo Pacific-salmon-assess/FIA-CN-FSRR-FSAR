@@ -28,6 +28,8 @@ options(mc.cores = parallel::detectCores())
 nic_dat <- read.csv("SP_1.2//Data_in//nic_dat.csv") #data required to run stock-recruit curve to generate Nicola alpha from which the Spring and Summer 1.3 alpha values will be derived
 fec_dat <- read.csv("data//fecundity.csv") #fecundity data for adjusting Nicola alpha parameter for use in Spring and Summer 1.3 simulations
 head(nic_dat)
+
+set.seed(1352)
 ```
 
 
@@ -65,12 +67,14 @@ dat <- list("N" = nrow(nic_dat),                  #number of years of data
 
 #running the Stan model
 fit <- stan(file = "R//Ricker_mod_alpha.stan", data = dat, chains=6,
-                    iter=10000, cores=6, thin = 1,
+                    iter=10000, cores=6, thin = 1, seed = 1352,
                     control=list("max_treedepth"=15,"adapt_delta"=0.8),
                     pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "surv_est", "f_nic", "f_su", "f_sp", "alpha_su",
-                           "alpha_sp", "umsy_su", "umsy_sp", "alpha_prime_su", "alpha_prime_sp", "umsy_nic"))
+                           "alpha_sp", "umsy_su", "umsy_sp", "alpha_prime_su", "alpha_prime_sp", "umsy_nic", "nu_Y", "alpha_prime_nic"))
 
 saveRDS(fit, "R//sp_su_1.3_fit.RDS")
+
+fit <- readRDS("R//sp_su_1.3_fit.RDS")
 
 #extract posteriors
 f_nic <- as.vector(extract(fit)[8])
@@ -84,6 +88,28 @@ alpha_prime_su <- as.vector(extract(fit)[15]) #need to set correct extraction nu
 umsy_nic <- as.vector(extract(fit)[17]) #need to set correct extraction number
 umsy_sp <- as.vector(extract(fit)[14]) #need to set correct extraction number
 umsy_su <- as.vector(extract(fit)[13]) #need to set correct extraction number
+
+out <- summary(fit)
+
+nuy <- out$summary[18:46,1]
+lrs <- pull(nic_dat %>% mutate(lrs = log(no_recruits/total_spawners)) %>% dplyr::select(lrs))
+
+preds <- data.frame(nuy, lrs)
+preds$year <- c(1992:2020)
+
+preds %>% ggplot(aes(x = year, y = nuy-lrs))+
+  geom_point()+
+  geom_hline(yintercept = 0, colour = "Red")+
+  labs(x = "Brood Year", y = "Predicted - Observed")+
+  theme_classic()
+
   
 ```
+
+
+
+
+
+
+
 

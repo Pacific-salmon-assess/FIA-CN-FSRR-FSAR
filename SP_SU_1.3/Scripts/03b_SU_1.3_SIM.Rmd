@@ -40,6 +40,8 @@ head(pos_dat)
 age_dat <- read.csv("SP_SU_1.3\\Data_in\\age_dat_SU1.3.csv")
 head(age_dat)
 
+
+set.seed(1352)
 ```
 
 
@@ -82,7 +84,9 @@ nu_wa_dat <- read.csv("data\\CN1.3_watershed_areas.csv")
 nu_wa = nu_wa_dat %>% dplyr::select(wa = w_area, pop = CU, smu = SMU) %>% filter(smu == "SU_1.3")
 
 #baseline data (paired watershed areas and SREPs) are specific to stream-type chinook for maximum relevance to Fraser Summer 1.3 Chinook (which are stream-type Chinook) -> these data are for running the Parken Habitat Model (2006)
-old_wa <- read.csv("data\\srep_habitat_model_data_stream-type_ May 2025.csv") %>% mutate_at(c(2:4), as.numeric)
+old_wa <- read.csv("data\\smax_habitat_model_data_stream-type_ March 2026.csv") %>% 
+  dplyr::select(stock, l_hist, watershed_area = w_area, alpha, srep) %>%
+  mutate_at(c(3:5), as.numeric) %>% filter(l_hist == "Stream-type")
 wa_dat <- old_wa
 source("R\\srep_wa_analysis_predict.R")
 
@@ -97,10 +101,9 @@ srep_post <- nu_srep %>% pivot_longer(names_to = "pop", cols = c(1:6)) %>% arran
 
 #creating alpha-sigma-alpha_prime posterior for each CU
 `CK-05` <- data.frame(as.vector(extract(post)[11])$alpha_su, 
-                      as.vector(extract(post)[4])$sigma,
-                      as.vector(extract(post)[15])$alpha_prime_su) %>% 
+                      as.vector(extract(post)[4])$sigma) %>% 
   mutate(CU = "CK-05")
-names(`CK-05`) <- c("alpha_su", "sigma", "alpha_prime_su", "CU")
+names(`CK-05`) <- c("alpha_su", "sigma", "CU")
 `CK-06` <- `CK-05`[sample(nrow(`CK-05`), 30000),] %>% mutate(CU = "CK-06")
 `CK-09` <- `CK-05`[sample(nrow(`CK-05`), 30000),] %>% mutate(CU = "CK-09")
 `CK-11` <- `CK-05`[sample(nrow(`CK-05`), 30000),] %>% mutate(CU = "CK-11")
@@ -109,12 +112,11 @@ names(`CK-05`) <- c("alpha_su", "sigma", "alpha_prime_su", "CU")
 
 w <- rbind(`CK-05`, `CK-06`) %>% rbind(.,`CK-09`) %>% rbind(.,`CK-11`) %>% rbind(.,`CK-14`) %>% rbind(.,`CK-19`)
 
-srep_post$alpha_prime_su <- w$alpha_prime_su
 srep_post$alpha <- ifelse(w$alpha_su > 0, w$alpha_su, 0) 
 srep_post$sigma <- w$sigma
 
 nu_beta <- srep_post %>% mutate(srep = value, #produces equivalent-to-Nicola-posteriors for all the CUs
-                     beta = alpha_prime_su/srep) %>%
+                     beta = alpha/srep) %>%
   dplyr::select(alpha, beta, sigma, pop)
 
 sim_post <- nu_beta %>% #creates one large posterior with all CUs represented
@@ -129,19 +131,19 @@ sim_post=sim_post[order(sim_post$stk),] #orders the posterior by stk #
 
 #manipulate the posterior into 10 posteriors, each with a fixed value for alpha and varying values of beta based on srep - this preserves the posterior variance while allowing fixed values of alpha to test across the plausible range for the icecream plots (see "04_samsim_processing.Rmd")
 #note that alpha values are based on the 2 SE range in alpha_sp
-alpha_nu <- seq(from = 0.26, to = 2.05, length.out = 10) #alpha values to test
+alpha_nu <- seq(from = 0.25, to = 2.0, length.out = 10) #alpha values to test
 stk_beta <- list() #empty list to populate with beta values sampled from 10 quantiles
 beta_nu <- list() #empty list of lists to combine the outputs of stk_beta
 b_ks <- seq(0.1, 1, 0.1)
 ###Creating a list of dataframes with beta and sigma pairs arranged by beta quantile slice##
 
-for(s in 1:5){
+for(s in 1:length(unique(sim_post$stk))){
   stk_beta[[s]] = sample_n(sim_post %>% filter(stk == s) %>% filter(beta < quantile(beta, probs = c(b_ks[1]))), 1000)[,3:4] #sample beta and sigma pairs from the posterior for each stock and the first beta quantile
 }
 beta_nu[[1]] <- bind_rows(stk_beta, .id = "column_label") #bind together for loop outputs
 
 for(i in 2:length(alpha_nu)){ #sample beta and sigma pairs from the posterior for each stock and the middle 11 beta quantiles
-  for(s in 1:5){
+  for(s in 1:length(unique(sim_post$stk))){
     stk_beta[[s]] = sample_n(sim_post %>% filter(stk == s) %>% filter(beta >= quantile(beta, probs = c(b_ks[i-1])) &
                                                                       beta < quantile(beta, probs = c(b_ks[i]))), 1000)[,3:4]
   }
@@ -158,14 +160,14 @@ for(i in 2:length(alpha_nu)){ #sample beta and sigma pairs from the posterior fo
 sim_post_vars <- list() #create empty list for final posteriors to feed to the simulation
 
 for(i in 1:length(alpha_nu)){
-  sim_post_vars[[i]] <- assign(paste("sim_post_a", alpha_nu[i], sep =""), rep(99, 5000))
+  sim_post_vars[[i]] <- assign(paste("sim_post_a", alpha_nu[i], sep =""), rep(99, 6000))
 }
 
 for(i in 1:length(alpha_nu)){ #populating dataframes with stk and alpha, leaving dummy values for beta and sigma
-  sim_post_vars[[i]] <- sample_n(sim_post, 5000) %>% mutate(alpha = alpha_nu[i], 
+  sim_post_vars[[i]] <- sample_n(sim_post, 6000) %>% mutate(alpha = alpha_nu[i], 
                                                             beta = 99,
                                                             sigma = 99)
-  sim_post_vars[[i]]$stk <- c(rep(1,1000), rep(2,1000), rep(3,1000), rep(4,1000), rep(5,1000))
+  sim_post_vars[[i]]$stk <- c(rep(1,1000), rep(2,1000), rep(3,1000), rep(4,1000), rep(5,1000), rep(6,1000))
 }
 
 
@@ -187,11 +189,11 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 ```
 
 
-This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ERs in simPars*
+This last chunk runs the simulation.
 ```{r sim input files}
 
-# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
-# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
 # 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
@@ -199,22 +201,22 @@ This last chunk runs the simulation.*Need to confirm base ER rates and CVs on ER
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
 
-# #uncomment to run the simulation
-# t <- Sys.time()
-# for(k in 1:10){
-#   for(u in 1:nrow(simPar)){
-#     genericRecoverySim(
-#       simPar = simPar[u,],
-#       cuPar = CUPar,
-#       srDat = NULL,
-#       ricPars = sim_post_vars[[k]],
-#       nTrials = 500, #number of trials used to produce the plots
-#       #nTrials = 10, #good number of iterations for testing the simulation
-#       cuCustomCorrMat = pcor,
-#       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
-#     }
-# }
-# Sys.time() - t
+#uncomment to run the simulation
+t <- Sys.time()
+for(k in 1:10){
+  for(u in 1:nrow(simPar)){
+    genericRecoverySim(
+      simPar = simPar[u,],
+      cuPar = CUPar,
+      srDat = NULL,
+      ricPars = sim_post_vars[[k]],
+      nTrials = 500, #number of trials used to produce the plots
+      #nTrials = 10, #good number of iterations for testing the simulation
+      cuCustomCorrMat = pcor,
+      outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
+    }
+}
+Sys.time() - t
 
 ```
 

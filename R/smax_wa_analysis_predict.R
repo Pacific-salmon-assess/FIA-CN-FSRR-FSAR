@@ -1,0 +1,39 @@
+smax_est <- function(nu_wa, old_wa){
+  #read in data to run Stan model
+  wa_dat <- old_wa
+  
+  
+  #creating the list of data to feed to Stan
+  dat <- list("N" = nrow(wa_dat),                  #number of original watersheds for estimating relationship between watershed area and smax
+              "K" = nrow(nu_wa),                 #number of new watersheds attempting to estimate a beta value for
+              "smax" = log(wa_dat$smax), #smaxs from original watersheds
+              "wa" = (log(wa_dat$watershed_area) - mean(log(wa_dat$watershed_area))) / sd(log(wa_dat$watershed_area)), #standardized watershed area from the original watersheds
+              "nu_wa" = nu_wa$wa) #standardized watershed areas from the watersheds for which we are trying to estimate beta 
+  
+  #running the Stan model
+  fit_smax <- stan(file = "R/smax_wa.stan", data = dat, chains=6,
+                   iter=10000, cores=6, thin = 1,
+                   control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                   pars=c("slope", "intercept", "sigma", "nu_smax"))
+  
+  #fit summary
+  out_smax <- summary(fit_smax)
+  nu_smax <- as.data.frame(unlist(extract(fit_smax)$nu_smax))
+  print(nu_smax)
+}
+
+
+#quick check that the line fits the data
+pred <- function(x){
+  (out_smax$summary[1,1] * x + out_smax$summary[2,1])
+}
+
+
+wa_dat %>% ggplot(aes(x = (log(watershed_area) - mean(log(watershed_area))) / sd(log(watershed_area)), y = log(smax)))+
+  geom_point()+
+  #uncertainty_ricker+
+  geom_function(fun = pred)+
+  labs(x = "log(Watershed area)", y = "log(smax)")+
+  theme_classic()
+
+
