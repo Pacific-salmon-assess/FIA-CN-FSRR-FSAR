@@ -19,7 +19,7 @@ for(i in 1:100) {
 }
 
 
-
+# as above but without logit transformation on explanatory variable
 marine_fmi <- seq(0.001, 0.999, 0.01)  # Proportions (avoiding 0 and 1)
 
 set.seed(123)
@@ -29,13 +29,33 @@ plot(NULL, xlim=c(0,1), ylim=c(0,1),
 abline(0, 1, col='red', lwd=2)
 
 for(i in 1:100) {
-  b0 <- rnorm(1, 0, 3)      # Your intercept prior
-  b1 <- rnorm(1, 0, 5)      # Your slope prior
+  # default priors
+  b0 <- rnorm(1, 0, 1)      # Your intercept prior
+  b1 <- rnorm(1, 0, 1)      # Your slope prior
   logit_can <- b0 + b1 * marine_fmi
   can_er <- plogis(logit_can)
   
-  lines(marine_fmi, can_er, col=rgb(0,0,0,0.1))
+  lines(marine_fmi, can_er, col=rgb(0,0.5,0,0.4))
+  
+  # weakly informative priors
+  b0_2 <- rnorm(1, -2.75, 1.5)
+  b1_2 <- rnorm(1, 5.5, 2)
+  # b0_2 <- rnorm(1, -2.75, 0.75)      
+  # b1_2 <- rnorm(1, 5.5, 2)      
+  logit_can_2 <- b0_2 + b1_2 * marine_fmi
+  can_er_2 <- plogis(logit_can_2)
+  
+  lines(marine_fmi, can_er_2, col=rgb(0,0,0.5,0.4))
 }
+
+
+
+
+
+# as above but assuming explanatory covariate is not logit transformed following
+# PT's review
+
+
 
 
 library(ggplot2)
