@@ -15,8 +15,10 @@ library(boot)
 library(ggpattern)
 
 #posterior data from CYER ~ FMI relationship
-ER_post <- readRDS("data\\fmi_cyer_posterior_predictions.rds") %>% 
+ER_post <- readRDS("data\\fmi_cyer_posterior_predictions.rds") %>% ##################NEED TO PUSH AND PULL TO GET NEW POSTERIORS
    filter(fmi %in% c(0, 0.1, 0.2, 0.3, 0.4))
+
+set.seed(1352)
 ```
 
 
@@ -25,8 +27,8 @@ This code chunk retrieves the simulation results from the folders and combines t
 
 #retrieving the basic simulation parameterization
 #each pair of CSVs is for a different error scenario - comment out the other 2 when running simulation
-# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
-# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
 # 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_pess.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_pess.csv")
@@ -35,7 +37,7 @@ This code chunk retrieves the simulation results from the folders and combines t
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp-impl.csv")
 
 #regenerating alpha_nu to extract the simultation results from the output folders
-alpha_nu <- seq(0.36, 2.13, length.out = 10)
+alpha_nu <- seq(0.35, 2.10, length.out = 10)
 
 #creating an empty list to store a dataframe for each value of alpha tested
 srdat_aq <- list()
@@ -108,8 +110,9 @@ sim_sum_ER <- sim_out %>% mutate(CU_ID = ifelse(CU == 1, "CK-04",
 #read in RDS with lower biological benchmarks (0.2 Smax)
 summ_smax0.2 <- readRDS("smax0.2.RDS")
 
+#threshold set to 1500 or 20% Smax, whichever value is higher (consistent with Rapid Status Approach)
 sim_sum_CU <- sim_sum %>%
-   filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
+   filter(year %in% c(91:95)) %>%  
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
@@ -120,29 +123,29 @@ sim_sum_CU <- sim_sum %>%
                            ifelse(CU_ID == "CK-10" & geo_mean_gen < summ_smax0.2[[6,2]], 0,
                            ifelse(CU_ID == "CK-12" & geo_mean_gen >= summ_smax0.2[[8,2]], 1,
                            ifelse(CU_ID == "CK-12" & geo_mean_gen < summ_smax0.2[[8,2]], 0,
+                           ifelse(CU_ID == "CK-18" & geo_mean_gen >= 1500, 1, 0)))))))))) %>% 
+   group_by(CU_ID, CU, alpha, targetER, scenario) %>%
+   summarize(p_fail = mean(cu_fail))
+
+#LBB set to 20% Smax for all CUs - contrasts with above by showing outcomes relative to watershed area-based capacity
+sim_sum_CU_LBB <- sim_sum %>%
+   filter(year %in% c(91:95)) %>%  
+   group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
+   summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
+   mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= summ_smax0.2[[1,2]], 1,
+                           ifelse(CU_ID == "CK-04" & geo_mean_gen < summ_smax0.2[[1,2]], 0,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen >= summ_smax0.2[[4,2]], 1,
+                           ifelse(CU_ID == "CK-08" & geo_mean_gen < summ_smax0.2[[4,2]], 0,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen >= summ_smax0.2[[6,2]], 1,
+                           ifelse(CU_ID == "CK-10" & geo_mean_gen < summ_smax0.2[[6,2]], 0,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen >= summ_smax0.2[[8,2]], 1,
+                           ifelse(CU_ID == "CK-12" & geo_mean_gen < summ_smax0.2[[8,2]], 0,
                            ifelse(CU_ID == "CK-18" & geo_mean_gen >= summ_smax0.2[[10,2]], 1, 0)))))))))) %>% 
    group_by(CU_ID, CU, alpha, targetER, scenario) %>%
    summarize(p_fail = mean(cu_fail))
 
-#QET set to 50 fish for similar life-history of Chinook in the Snake River Basin, so used that here
-sim_sum_CU_QET <- sim_sum %>%
-   filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
-   group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
-   summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
-   mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 50, 1,
-                           ifelse(CU_ID == "CK-04" & geo_mean_gen < 50, 0,
-                           ifelse(CU_ID == "CK-08" & geo_mean_gen >= 50, 1,
-                           ifelse(CU_ID == "CK-08" & geo_mean_gen < 50, 0,
-                           ifelse(CU_ID == "CK-10" & geo_mean_gen >= 50, 1,
-                           ifelse(CU_ID == "CK-10" & geo_mean_gen < 50, 0,
-                           ifelse(CU_ID == "CK-12" & geo_mean_gen >= 50, 1,
-                           ifelse(CU_ID == "CK-12" & geo_mean_gen < 50, 0,
-                           ifelse(CU_ID == "CK-18" & geo_mean_gen >= 50, 1, 0)))))))))) %>% 
-   group_by(CU_ID, CU, alpha, targetER, scenario) %>%
-   summarize(p_fail = mean(cu_fail))
-
 #Summarizing at the SMU level to examine likelihood of exceeding CU-status-based LRP
-sim_sum_SMU <- sim_sum %>% filter(year %in% c(91:95)) %>%  #need to update when new sim is run... will be years 41:45 
+sim_sum_SMU <- sim_sum %>% filter(year %in% c(91:95)) %>% 
    group_by(CU_ID, CU, alpha, targetER, scenario, iteration) %>%
    summarize(geo_mean_gen = exp(mean(log(spawners)))) %>% 
    mutate(cu_fail = ifelse(CU_ID == "CK-04" & geo_mean_gen >= 1500, 1,
@@ -384,8 +387,8 @@ ggsave(CU_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Fi
 
 ```
 
-Optimistic CU QET Results
-```{r sim results vis CU QET OPTI}
+Optimistic CU LBB Results
+```{r sim results vis CU LBB OPTI}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
@@ -399,9 +402,9 @@ my_labels = rep("", length(all_breaks))
 my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
 
 #p(CU above LBM)
-QET_plot <- list()
+LBB_plot <- list()
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+   LBB_plot[[i]] <- sim_sum_CU_LBB %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
@@ -414,7 +417,7 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> QET)",
+                     name = "P(Conservation Unit\n> LBB)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
@@ -455,10 +458,10 @@ get_legend <- function(plot, legend = NULL) {
   return(NULL)
 }
 
-legend1 = get_legend(QET_plot[[1]])
+legend1 = get_legend(LBB_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- QET_plot[[i]]+
+   LBB_plot[[i]] <- LBB_plot[[i]]+
    theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
@@ -476,20 +479,20 @@ opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-QET <- ggdraw(plot_grid(opti_plotA, QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+LBB <- ggdraw(plot_grid(opti_plotA, LBB_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
                                                         axis.text.x = element_text(colour = "white")), 
-                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), QET_plot[[3]], 
-                       opti_plotB, QET_plot[[4]], QET_plot[[5]], legend1,
+                                   LBB_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), LBB_plot[[3]], 
+                       opti_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
                        label_x = 0.95, label_y = 1.00, hjust = 1))
 
-QET_plot <- cowplot::plot_grid(QET)
+LBB_plot <- cowplot::plot_grid(LBB)
 
-ggsave(QET_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_QET.pdf")
+ggsave(LBB_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
 
 ```
 
@@ -690,8 +693,8 @@ ggsave(CU_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Fi
 
 ```
 
-Realistic CU QET Results
-```{r sim results vis CU QET PESS}
+Realistic CU LBB Results
+```{r sim results vis CU LBB PESS}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
@@ -705,9 +708,9 @@ my_labels = rep("", length(all_breaks))
 my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
 
 #p(CU above LBM)
-QET_plot <- list()
+LBB_plot <- list()
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+   LBB_plot[[i]] <- sim_sum_CU_LBB %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
@@ -720,7 +723,7 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> QET)",
+                     name = "P(Conservation Unit\n> LBB)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
@@ -761,10 +764,10 @@ get_legend <- function(plot, legend = NULL) {
   return(NULL)
 }
 
-legend1 = get_legend(QET_plot[[1]])
+legend1 = get_legend(LBB_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- QET_plot[[i]]+
+   LBB_plot[[i]] <- LBB_plot[[i]]+
    theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
@@ -782,20 +785,20 @@ pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-QET <- ggdraw(plot_grid(pess_plotA, QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+LBB <- ggdraw(plot_grid(pess_plotA, LBB_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
                                                         axis.text.x = element_text(colour = "white")), 
-                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), QET_plot[[3]], 
-                       pess_plotB, QET_plot[[4]], QET_plot[[5]], legend1,
+                                   LBB_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), LBB_plot[[3]], 
+                       pess_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
                        label_x = 0.95, label_y = 1.00, hjust = 1))
 
-QET_plot <- cowplot::plot_grid(QET)
+LBB_plot <- cowplot::plot_grid(LBB)
 
-ggsave(QET_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_QET.pdf")
+ggsave(LBB_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
 
 ```
 
@@ -997,7 +1000,7 @@ ggsave(CU_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Fi
 ```
 
 No Implmentation Error Results
-```{r sim results vis CU QET -IMP}
+```{r sim results vis CU LBB -IMP}
 
 Ccols <- c("Very Low (0.00-0.04)" = "#330033",
            "Low (0.05-0.24)" = "#d01c8b", 
@@ -1011,9 +1014,9 @@ my_labels = rep("", length(all_breaks))
 my_labels[seq(1, length(my_labels), 2)] <- all_breaks[seq(1, length(my_labels), 2)]
 
 #p(CU above LBM)
-QET_plot <- list()
+LBB_plot <- list()
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- sim_sum_CU_QET %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
+   LBB_plot[[i]] <- sim_sum_CU_LBB %>% filter(CU == i)  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.00-0.04)",
                                           ifelse(p_fail > 0.04 & p_fail <= 0.24, "Low (0.05-0.24)",
                                                  ifelse(p_fail > 0.24 & p_fail <= 0.49, "Moderately Low (0.25-0.49)",
                                                         ifelse(p_fail > 0.49 & p_fail <= 0.74, "Moderately High (0.50-0.74)",
@@ -1026,7 +1029,7 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> QET)",
+                     name = "P(Conservation Unit\n> LBB)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
@@ -1067,10 +1070,10 @@ get_legend <- function(plot, legend = NULL) {
   return(NULL)
 }
 
-legend1 = get_legend(QET_plot[[1]])
+legend1 = get_legend(LBB_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
-   QET_plot[[i]] <- QET_plot[[i]]+
+   LBB_plot[[i]] <- LBB_plot[[i]]+
    theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
@@ -1088,20 +1091,20 @@ pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-QET <- ggdraw(plot_grid(pess_plotA, QET_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
+LBB <- ggdraw(plot_grid(pess_plotA, LBB_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
                                                         axis.text.x = element_text(colour = "white")), 
-                                   QET_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), QET_plot[[3]], 
-                       pess_plotB, QET_plot[[4]], QET_plot[[5]], legend1,
+                                   LBB_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
+                                                        axis.text.x = element_text(colour = "white")), LBB_plot[[3]], 
+                       pess_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
                        label_x = 0.95, label_y = 1.00, hjust = 1))
 
-QET_plot <- cowplot::plot_grid(QET)
+LBB_plot <- cowplot::plot_grid(LBB)
 
-ggsave(QET_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_QET.pdf")
+ggsave(LBB_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
 
 ```
 

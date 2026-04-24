@@ -1,0 +1,34 @@
+stock,l_hist,w_area,smsy,srep,alpha,smax
+King Salmon,Stream-type,93,188,496,1.6173,307
+Unuk,Stream-type,1390,3964,9793,0.33411,29311
+Nicola,Stream-type,4521,1906,4169,0.6824063,6109
+Andrew ,Stream-type,126,707,1932,1.8135,1065
+Blossom ,Stream-type,176,1182,2949,1.3195,2235
+Keta ,Stream-type,192,974,2400,1.2045,1993
+Klukshu River-Alsek Trib,Stream-type,253,999,2590,2.0612,1257
+Chickamin,Stream-type,1047,2246,6118,1.7184,3560
+Chena,Stream-type,4515,3672,10946,2.129179289,5141
+Salcha,Stream-type,5620,4672,13817,2.175875007,6350
+Taku ,Stream-type,17094,29020,70335,1.282849768,54827
+Upper Columbia-Spring-run,Stream-type,114434,49150,138255,1.9992,69155
+Stikine,Stream-type,15337,17800,42121,0.998138,42199
+Skeena Aggregate,Stream-type,52923,39817,116414,1.464404004,79496
+Copper (near Chutina),Stream-type,53794,26951,66808,1.326252886,50374
+E.F. Andreafsky,Stream-type,1950,1701,4494,1.735012735,2590
+Kogrukluk,Stream-type,2073,5252,15070,2.164012443,6964
+Yukon (in canada),Stream-type,252070,48443,146576,2.1106944,69444
+Nelson,Stream-type,2046,3080,7583,1.4383,5272
+Cowichan,ocean-type,,,,1.6632,
+Nehalem,ocean-type,,,,1.8785,
+Siletz,ocean-type,,,,2.4920,
+Siuslaw,ocean-type,,,,1.5771,
+Lewis R. Falls,ocean-type,,,,2.1893,
+Harrison,ocean-type,,,,1.2271,
+Queets,ocean-type,,,,1.8009,
+Chehalis,ocean-type,,,,1.7400,
+Humptulips,ocean-type,,,,2.4828,
+Quilayute,ocean-type,,,,2.2680,
+Skagit,ocean-type,,,,1.7759,
+Situk River,ocean-type,,,,2.1548,
+Deschutes,ocean-type,,,,1.5790,
+Lower Shuswap,ocean-type,,,,0.9575062,

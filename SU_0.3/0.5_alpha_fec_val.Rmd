@@ -1,0 +1,330 @@
+---
+title: "Alpha Adjustment Validation"
+author: "Colin Bailey"
+date: "2026-03-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+library(shinystan)
+library(bayesplot)
+library(pkgbuild)
+library(boot)
+library(loo)
+library(MASS)
+library(dglm)
+library(lamW)
+
+pkgbuild::has_build_tools(debug = TRUE)
+rstan_options(auto_write=T)
+options(mc.cores = parallel::detectCores())
+
+#read in and check data
+lshu_dat <- read.csv("SU_0.3//Data_in//lshu_dat.csv") #data required to run stock-recruit curve to generate Nicola alpha from which the Spring and Summer 1.3 alpha values will be derived
+#read in and check data
+har_dat <- read.csv("SU_0.3//Data_in//har_dat.csv") #data required to run stock-recruit curve to generate Nicola alpha from which the Spring and Summer 1.3 alpha values will be derived
+lshu_fec_means <- read.csv("SU_0.3//Data_in//Lower_Shuswap_Fecundity_means.csv") #fecundity data for adjusting Nicola alpha parameter for use in Spring and Summer 1.3 simulations
+har_fec_means <- read.csv("SU_0.3//Data_in//Harrison_Fecundity_means.csv") #fecundity data for adjusting Nicola alpha parameter for use in Spring and Summer 1.3 simulations
+har_fec_ind <- read.csv("SU_0.3//Data_in//Harrison_fecundity_2018-19_individual_data.csv") #fecundity data for adjusting Nicola alpha parameter for use in Spring and Summer 1.3 simulations
+har_fec_sep <- read.csv("SU_0.3//Data_in//HarrisonFecundity_SEP.csv") #fecundity data reported by SEP in the process of spawning fish collected for brood - can compare with the reconstructed fecundity timeseries to determine bias in collection methods (i.e., are hatcheries selecting larger than average females for broodstock..?)
+
+head(lshu_dat)
+head(har_dat)
+
+set.seed(1352)
+```
+
+
+Cleaning up the stock-recruit timeseries for S-R models below.
+```{r data manip}
+lshu_srdat <- lshu_dat %>% dplyr::select(b_year = Brood.Year, spawn = spawners, rec = recruits, surv = Survival)
+
+har_srdat <- har_dat %>% dplyr::select(b_year = Brood.Year, spawn = Total.Age.3.5.Spawners, rec = Recruits,
+                                       surv = Smolt.age2Surv)
+
+```
+
+
+Fecundity data for Harrison River came from 2018 and 2019 individual-level sampling of female chinook (Weir et al. 2022) and from estimates of mean fecundity by year based on a relationship between fish length and fecundity, again from Weir et al. 2022. Here, we estimate the variance in the individual-level data from the 2018-2019 dataset, and applying it to the annuals means to generate individual-level data for use in the fecundity-based adjustments in the stock-recruit models below. Lower Shuswap individual fecundities were also calculated from annual means collected by SEP using the variance calculated from Harrison (assumption is that given the same suite of returns at age and similar life-history, applying the variance from one to the other is fine).
+```{r data manip}
+
+#comparison of Weir et al. annual fecundity means to SEP broodstock collection fecundity means
+har_SEP_means <- har_fec_sep %>% group_by(SPAWNING_YEAR) %>% summarize(k = sum(TOTAL_FEMALE_SPAWNED),
+                                                      f = mean(AVERAGE_FECUNDITY)) %>% 
+  dplyr::select(b_year = SPAWNING_YEAR, f_sep = f)
+
+fec_comp <- left_join(har_SEP_means, har_fec_means) %>% drop_na() %>% mutate(s_fsep = (f_sep - mean(f_sep)) / sd(f_sep),
+                                                                             s_f = (f - mean(f_sep)) / sd(f_sep))
+
+#model using centered means to estimate conversion from SEP fecundity data to representative fecundity values
+s_model <- lm(s_f ~ s_fsep, data = fec_comp)
+co_fs <- summary(s_model)$coefficients
+
+#SD of individual measures
+sdf <- har_fec_ind %>% summarise(sd_f = sd(f))
+
+har_f_dat <- har_fec_means %>% mutate(sd = sdf$sd_f) %>% 
+  slice(rep(1:n(), times = nrow(har_fec_ind))) %>% 
+  mutate(f_new = rnorm(n(), f, sd),
+         CU = "FA_0.3") %>% 
+  dplyr::select(b_year, f_new, CU)
+
+#Applying a correction factor to the Lower Shuswap SEP fecundity data to adjust for biased brood selection based on the Harrison data
+lshu_f_dat <- lshu_fec_means %>% drop_na() %>% mutate(sd = sdf$sd_f,
+                                                      s_f = (f - mean(f)) / sd(f),
+                                                      f_est = co_fs[1,1] + co_fs[2,1]*s_f,
+                                                      f_ad = (f_est * sd(f)) + mean(f)) %>% 
+  dplyr::select(b_year, f = f_ad, k, sd) %>% 
+  slice(rep(1:n(), times = k)) %>% 
+  mutate(f_new = rnorm(n(), f, sd),
+         CU = "SU_0.3") %>% 
+  dplyr::select(b_year, f_new, CU)
+
+
+```
+
+
+This code chunk runs a Ricker stock-recruit model using Stan that incorporates a hatchery-based smolt-to-age_3 survival (SS) index covariate. The model also includes an AR-1 temporal autocorrelation structure. The SS index is logit-transformed and standardized (z-scored). Note that hatchery-origin spawners are included in the total spawners generating recruits, but only natural-origin recruits are used in the model. In addition, the model estimates the first year (1992) of the SS index because of a disease issue at Spius Creek Hatchery that severely-reduced smolt survival that year. The purpose of running this model with Nicola data is to produce a Fraser stream-type chinook productivity estimate that can be adjust below for Spring/Summer 1.3 chinook.
+```{r Harrison ricker model}
+
+#creating the list of data to feed to Stan
+dat <- list("N" = nrow(har_srdat),                  #number of years of data
+            "surv" = (logit(har_srdat$surv) - mean(logit(har_srdat$surv))) /
+              sd(logit(har_srdat$surv)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(har_srdat %>% mutate(lrs = log(rec/spawn)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
+            "S" = har_srdat$spawn, #vector of total spawner abundance
+            "mlogit_surv" = 0, #mean logit-transformed survival
+            "faN" = length(har_f_dat$f_new),
+            "suN" = length(lshu_f_dat$f_new),
+            "ffa" = har_f_dat$f_new,
+            "fsu" = lshu_f_dat$f_new) 
+
+#running the Stan model
+fit_val1 <- stan(file = "R//Ricker_mod_alpha_validation.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1, seed = 1352,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "f_fa", "f_su", "alpha_su",
+                           "umsy_su", "umsy_fa", "nu_Y", "p_f_su_fa"))
+
+saveRDS(fit_val1, "R//val1_0.3_fit.RDS")
+
+fit_val1 <- readRDS("R//val1_0.3_fit.RDS")
+
+#extract posteriors
+f_fa_v1 <- as.vector(extract(fit_val1)[7])
+f_su_v1 <- as.vector(extract(fit_val1)[8])
+alpha_fa_v1 <- as.vector(extract(fit_val1)[2]) 
+alpha_su_v1 <- as.vector(extract(fit_val1)[9]) 
+umsy_fa_v1 <- as.vector(extract(fit_val1)[11])
+umsy_su_v1 <- as.vector(extract(fit_val1)[10])
+
+out_val1 <- summary(fit_val1)
+
+nuy <- out_val1$summary[12:41,1]#need to reset range of values extracted 
+lrs <- pull(har_srdat %>% mutate(lrs = log(rec/spawn)) %>% dplyr::select(lrs))
+
+preds <- data.frame(nuy, lrs)
+preds$year <- c(1984:2013)#reset year range based on Harrison dataset
+
+#predicted-observed plot for Harrison S-R model
+preds %>% ggplot(aes(x = year, y = nuy-lrs))+
+  geom_point()+
+  geom_hline(yintercept = 0, colour = "Red")+
+  labs(x = "Brood Year", y = "Predicted - Observed")+
+  theme_classic()
+  
+```
+
+
+```{r Lower Shuswap ricker model}
+
+#creating the list of data to feed to Stan
+dat <- list("N" = nrow(lshu_srdat),                  #number of years of data
+            "surv" = (logit(lshu_srdat$surv) - mean(logit(lshu_srdat$surv))) /
+              sd(logit(lshu_srdat$surv)), #logit-transformed smolt to age 3 adult survival
+            "lrs" = pull(lshu_srdat %>% mutate(lrs = log(rec/spawn)) %>% dplyr::select(lrs)),  #log natural origin  recruits per spawner (HO & NO)
+            "S" = lshu_srdat$spawn, #vector of total spawner abundance
+            "mlogit_surv" = 0, #mean logit-transformed survival
+            "faN" = length(har_f_dat$f_new),
+            "suN" = length(lshu_f_dat$f_new),
+            "ffa" = har_f_dat$f_new,
+            "fsu" = lshu_f_dat$f_new) 
+
+#running the Stan model
+fit_val2 <- stan(file = "R//Ricker_mod_alpha_validation2.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1, seed = 1352,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("beta", "alpha", "gamma", "sigma", "Smax", "rho", "f_fa", "f_su", "alpha_fa",
+                           "umsy_su", "umsy_fa", "nu_Y", "p_f_fa_su"))
+
+saveRDS(fit_val2, "R//val2_0.3_fit.RDS")
+
+fit_val2 <- readRDS("R//val2_0.3_fit.RDS")
+
+#extract posteriors - need to reset extraction numbers
+f_fa_v2 <- as.vector(extract(fit_val2)[7])
+f_su_v2 <- as.vector(extract(fit_val2)[8])
+alpha_fa_v2 <- as.vector(extract(fit_val2)[9]) 
+alpha_su_v2 <- as.vector(extract(fit_val2)[2]) 
+umsy_fa_v2 <- as.vector(extract(fit_val2)[11])
+umsy_su_v2 <- as.vector(extract(fit_val2)[10])
+
+out_val2 <- summary(fit_val2)
+
+nuy <- out_val2$summary[12:31,1]#need to reset range of values extracted 
+lrs <- pull(lshu_srdat %>% mutate(lrs = log(rec/spawn)) %>% dplyr::select(lrs))
+
+preds <- data.frame(nuy, lrs)
+preds$year <- c(1997:2016)#reset year range based on Harrison dataset
+
+#predicted-observed plot for Harrison S-R model
+preds %>% ggplot(aes(x = year, y = nuy-lrs))+
+  geom_point()+
+  geom_hline(yintercept = 0, colour = "Red")+
+  labs(x = "Brood Year", y = "Predicted - Observed")+
+  theme_classic()
+  
+```
+
+V1 fits a stock-recruit model to the Harrison data and then attempts to estimate Lower Shuswap productivity based on proportional differences in fecundity. V2 does the inverse, and fits a stock-recruit model to the Lower Shuswap data and then attempts to estimate Harrison productivity based on proportional differences in fecundity. Below, we plot the input fecundity data as histograms for each indicator stock, then compare the S-R vs fecundity based alphas for each stock, and then finally the UMSYs.
+```{r parameter comparisons}
+#fecundity comparison
+fec_dat <- rbind(har_f_dat, lshu_f_dat)
+
+fec_dat %>% ggplot(aes(x = f_new, fill = CU))+
+  geom_histogram(aes(x = f_new), alpha = 0.5)+
+  scale_fill_manual(values = c("#D55E00", "#0072B2"))+
+  labs(x = "Fecundity (n eggs)", y = "Count (n)")+
+  facet_wrap(~CU, nrow = 2)+
+  theme_classic()
+
+#summer 0.3 alpha estimate comparisons
+a_su <- c(alpha_su_v2$alpha, alpha_su_v1$alpha_su)
+method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+pro_su <- data.frame(a_su, method)
+pro_su$med_a <- c(rep(median(alpha_su_v2$alpha), 30000), rep(median(alpha_su_v1$alpha_su), 30000))
+pro_su$u95_a <- c(rep(quantile(alpha_su_v2$alpha, probs = 0.975), 30000), rep(quantile(alpha_su_v1$alpha_su, probs = 0.975), 30000))
+pro_su$l95_a <- c(rep(quantile(alpha_su_v2$alpha, probs = 0.025), 30000), rep(quantile(alpha_su_v1$alpha_su, probs = 0.025), 30000))
+
+pro_su %>% ggplot(aes(x = a_su))+
+  geom_histogram(aes(x = a_su), fill = "#0072B2", alpha = 0.3)+
+  geom_vline(aes(xintercept = med_a), colour = "#0072B2", linewidth = 1.5)+
+  geom_vline(aes(xintercept = u95_a), colour = "#0072B2", linewidth = 1, linetype = "dashed")+
+  geom_vline(aes(xintercept = l95_a), colour = "#0072B2", linewidth = 1, linetype = "dashed")+
+  labs(x = "Productivity (ln(a))", y = "Count (n)")+
+  facet_wrap(~ method, nrow = 2)+
+  theme_classic()
+
+#fall 0.3 alpha estimate comparisons
+a_fa <- c(alpha_fa_v1$alpha, alpha_fa_v2$alpha_fa)
+method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+pro_fa <- data.frame(a_fa, method)
+pro_fa$med_a <- c(rep(median(alpha_fa_v1$alpha), 30000), rep(median(alpha_fa_v2$alpha_fa), 30000))
+pro_fa$u95_a <- c(rep(quantile(alpha_fa_v1$alpha, probs = 0.975), 30000), rep(quantile(alpha_fa_v2$alpha_fa, probs = 0.975), 30000))
+pro_fa$l95_a <- c(rep(quantile(alpha_fa_v1$alpha, probs = 0.025), 30000), rep(quantile(alpha_fa_v2$alpha_fa, probs = 0.025), 30000))
+
+pro_fa %>% ggplot(aes(x = a_fa))+
+  geom_histogram(aes(x = a_fa), fill = "#D55E00", alpha = 0.3)+
+  geom_vline(aes(xintercept = med_a), colour = "#D55E00", linewidth = 1.5)+
+  geom_vline(aes(xintercept = u95_a), colour = "#D55E00", linewidth = 1, linetype = "dashed")+
+  geom_vline(aes(xintercept = l95_a), colour = "#D55E00", linewidth = 1, linetype = "dashed")+
+  labs(x = "Productivity (ln(a))", y = "Count (n)")+
+  facet_wrap(~ method, nrow = 2)+
+  theme_classic()
+
+#Comparison of the alpha estimates 
+ggplot()+
+  geom_histogram(data = pro_fa, aes(x = a_fa), fill = "#D55E00", alpha = 0.3)+
+  geom_histogram(data = pro_su, aes(x = a_su), fill = "#0072B2", alpha = 0.3)+
+  facet_wrap(.~ method, nrow = 2)+
+  labs(x = "Productivity (ln(alpha))", y = "Count (n)")+
+  theme_classic()
+
+#summer 0.3 Umsy estimate comparisons
+u_su <- c(umsy_su_v2$umsy_su, umsy_su_v1$umsy_su)
+method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+u_su <- data.frame(u_su, method)
+u_su$med_u <- c(rep(median(umsy_su_v2$umsy_su), 30000), rep(median(umsy_su_v1$umsy_su), 30000))
+u_su$u95_u <- c(rep(quantile(umsy_su_v2$umsy_su, probs = 0.975), 30000), rep(quantile(umsy_su_v1$umsy_su, probs = 0.975), 30000))
+u_su$l95_u <- c(rep(quantile(umsy_su_v2$umsy_su, probs = 0.025), 30000), rep(quantile(umsy_su_v1$umsy_su, probs = 0.025), 30000))
+
+u_su %>% ggplot(aes(x = u_su))+
+  geom_histogram(aes(x = u_su), fill = "#0072B2", alpha = 0.3)+
+  geom_vline(aes(xintercept = med_u), colour = "#0072B2", linewidth = 1.5)+
+  geom_vline(aes(xintercept = u95_u), colour = "#0072B2", linewidth = 1, linetype = "dashed")+
+  geom_vline(aes(xintercept = l95_u), colour = "#0072B2", linewidth = 1, linetype = "dashed")+
+  labs(x = "UMSY", y = "Count (n)")+
+  facet_wrap(~ method, nrow = 2)+
+  theme_classic()
+
+#fall 0.3 Umsy estimate comparisons
+u_fa <- c(umsy_fa_v1$umsy_fa, umsy_fa_v2$umsy_fa)
+method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+u_fa <- data.frame(u_fa, method)
+u_fa$med_u <- c(rep(median(umsy_fa_v1$umsy_fa), 30000), rep(median(umsy_fa_v2$umsy_fa), 30000))
+u_fa$u95_u <- c(rep(quantile(umsy_fa_v1$umsy_fa, probs = 0.975), 30000), rep(quantile(umsy_fa_v2$umsy_fa, probs = 0.975), 30000))
+u_fa$l95_u <- c(rep(quantile(umsy_fa_v1$umsy_fa, probs = 0.025), 30000), rep(quantile(umsy_fa_v2$umsy_fa, probs = 0.025), 30000))
+
+u_fa %>% ggplot(aes(x = u_fa))+
+  geom_histogram(aes(x = u_fa), fill = "#D55E00", alpha = 0.3)+
+  geom_vline(aes(xintercept = med_u), colour = "#D55E00", linewidth = 1.5)+
+  geom_vline(aes(xintercept = u95_u), colour = "#D55E00", linewidth = 1, linetype = "dashed")+
+  geom_vline(aes(xintercept = l95_u), colour = "#D55E00", linewidth = 1, linetype = "dashed")+
+  labs(x = "UMSY", y = "Count (n)")+
+  facet_wrap(~ method, nrow = 2)+
+  theme_classic()
+
+
+
+```
+
+
+```{r adjusted alpha}
+
+#reading in the stream- and ocean-type alphas dataset from the Parken habitat model
+stream <- read.csv("data\\smax_habitat_model_data_stream-type_ March 2026.csv")
+
+#simple Stan model to estimate mean alpha for stream- and ocean-type chinook, then mean proportional difference with uncertainty to apply to the lower shu and harrison populations
+
+#creating the list of data to feed to Stan
+dat <- list("o_N" = length(pull(stream %>% filter(l_hist == "ocean-type"))),
+            "s_N" = length(pull(stream %>% filter(l_hist == "Stream-type"))),
+            "a_o" = (stream %>% filter(l_hist == "ocean-type"))[,6],
+            "a_s" = (stream %>% filter(l_hist == "Stream-type"))[,6]) 
+
+#running the Stan model
+fit_acomp <- stan(file = "R//alpha_comp.stan", data = dat, chains=6,
+                    iter=10000, cores=6, thin = 1, seed = 1352,
+                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
+                    pars=c("alpha_o", "alpha_s", "r_sto"))
+
+saveRDS(fit_acomp, "R//acomp_fit.RDS")
+
+#all Stan model fits required to do adjustment and create one large alpha posterior for Fraser Stream-type Chinook
+fit_acomp <- readRDS("R//acomp_fit.RDS")
+fit <- readRDS("R//sp_su_1.3_fit.RDS")
+fit_val1 <- readRDS("R//val1_0.3_fit.RDS")
+fit_val2 <- readRDS("R//val2_0.3_fit.RDS")
+
+#extract alpha posteriors for lower shuswap and harrison... then extract posterior of ratio between mean alpha of stream- vs ocean-type chinook populations
+a_har <- as.vector(extract(fit_val1)[2])$alpha
+a_shu <- as.vector(extract(fit_val2)[2])$alpha
+r_sto <- as.vector(extract(fit_acomp)[3])$r_sto
+
+#create combined posterior of Nicola, adjusted Harrison, and adjusted Lower Shuswap for alpha parameter
+a_har_ad <- a_har * r_sto
+a_shu_ad <- a_shu * r_sto
+a_post <- c(a_har_ad, a_shu_ad, as.vector(extract(fit)[2])$alpha)
+
+#summarize new combined posterior
+quant <- quantile(a_post, probs = c(0.025, 0.975, 0.5))
+
+umsy <- (1 - lambertW0(exp(1 - (quant))))
+
+```
