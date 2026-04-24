@@ -53,6 +53,10 @@ survival_dat <-read.csv(
 pHOS_dat <-read.csv(
   here("SP_SU_1.3", "Data_in", "CKO_pHOS_feb_2025.csv")
 )
+
+quality_data <- read.csv(
+  here("SP_SU_1.3", "Data_in", "NuSEDS_CUdata_1.3_FORMATTED_08212025_OUT.csv")
+)
 ```
 
 Code chunk to create the Summer 1.3 recruitment plot
@@ -93,11 +97,13 @@ ggplot(aes(x = year, y = recruits / 1000, colour = source)) +
     values = c("CYER" = "black", "FMI" = "grey70") # for res doc version will show both ERs
   ) +
   scale_y_continuous(
+    limits = c(0,NA),
     breaks = seq(
       0,
       max(recs$recruits, na.rm = TRUE) / 1000 + 5,
       by = 5
-    )
+    ),
+    expand = c(0,0)
   ) +
   scale_x_continuous(limits = c(2019, 2024)) +
   theme_classic()
@@ -144,11 +150,13 @@ ggplot(aes(x = year, y = catch / 1000, colour = source)) +
     values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
+    limits = c(0,NA),
     breaks = seq(
       0,
       max(recs$recruits, na.rm = TRUE) / 1000,
       by = 1
-    )
+    ),
+    expand = c(0,0)
   ) +
   scale_x_continuous(limits = c(2019, 2024)) +
   theme_classic()
@@ -188,7 +196,10 @@ smu_total <- smu_dat %>%
 spawn <- smu_total %>% ggplot(aes(x = Year, y = total_no_spawners/1000))+
   geom_line(color= "black", linewidth = 1.2)+
   labs(x = "Return year", y = "Spawner abundance (1000s)")+
-  scale_y_continuous(breaks = seq(0, max(smu_dat$no_spawners / 1000) + 5, by = 5))+
+  scale_y_continuous(
+    limits = c(0,NA),
+    breaks = seq(0, max(smu_dat$no_spawners / 1000) + 5, by = 5),
+    expand = c(0,0))+
   scale_x_continuous(limits = c(2004, 2024),
                      breaks = seq(2004,2024, by = 4) )+
   theme_classic()
@@ -210,6 +221,9 @@ write.csv(smu_total, "smu_esc_su_1.3.csv")
 Code chunk to create the Summer 1.3 exploitation rate plot
 ```{r ER plot}
 
+intercept <- 0.38
+lower_ci <- 0.12
+upper_ci <- 0.72
 
 ER <- ER_dat %>%
   # select(year, CYER) %>%
@@ -229,25 +243,35 @@ ER <- ER_dat %>%
 
 ER <- ER %>% 
 ggplot(aes(x = year, y = ER, colour = source)) +
+  
+ annotate("rect",
+           xmin = -Inf, xmax = Inf,
+           ymin = lower_ci, ymax = upper_ci,
+           fill = "red", alpha = 0.1) +
+
   geom_line(linewidth = 1.2) +
+
   labs(
     x = "Return year",
     y = "Exploitation Rate",
     colour = NULL
   ) +
   scale_colour_manual(
-    # values = c("CYER"= "black")
     values = c("CYER" = "black", "FMI" = "grey70")
   ) +
   scale_y_continuous(
+    limits = c(0,0.80),
     breaks = seq(
       0,
-      max(ER$ER, na.rm = TRUE) + 0.3,
-      by = 0.05
-    )
+      max(ER$ER, na.rm = TRUE) + 0.6,
+      by = 0.1
+    ),
+    expand = c(0,0)
   ) +
   scale_x_continuous(limits = c(2019, 2024)) +
-geom_hline(yintercept = 0.40, colour = "red",  linewidth = 0.8) +
+
+  # existing intercept line (leave this)
+  geom_hline(yintercept = intercept, colour = "red", linewidth = 1.0) +
 # geom_text(
 #   data = data.frame(x = 2024, y = 0.40),
 #   aes(x = x, y = y, label = "U[MSY]"),
@@ -290,24 +314,12 @@ four_plot <- plot_grid(catch, spawn, ER, recruit,
           label_size = 12,
           align = "v",
           label_x = 0.87)
+four_plot <- ggdraw(four_plot)+
+    theme(plot.margin = margin(t = 30, r = 10, b = 10, l = 10))
 print(four_plot)
 
-ggsave(four_plot, height = 5, width = 10 , units = "in", filename = "4plotFSAR_SU1.3.png")
 
-```
-
-Code chunk to create the smolt-to-age_3 survival index plot
-```{r surv plot}
-
-nic_dat %>% ggplot(aes(x = brood_year, y = smolt_age3_survival*100))+
-  geom_line()+
-  scale_x_continuous(limits = c(1993, 2020),
-                     breaks = c(1995, 2000, 2005, 2010, 2015, 2020))+
-  scale_y_continuous()+
-  labs(x = "Brood year", y = "Smolt to age 3 recruit survival (%)")+
-  theme_classic()
-
-ggsave(height = 3.5, width = 4.5, units = "in", filename = "surv.png")
+ggsave(four_plot, height = 6, width = 10 , units = "in", filename = "4plotFSAR_CI_SU1.3.png")
 
 ```
 
@@ -574,5 +586,92 @@ pHOS_dat %>% ggplot(aes(x = return_year, y = afc_rate))+
 print(pHOS_dat)
 
 ggsave(height = 3.5, width = 4.5, units = "in", filename = "CKO_pHOS.png")
+
+```
+Code Chunk to Create Data Quality Proportion Plot 
+```{r qual plot}
+
+str(quality_data)
+glimpse(quality_data)
+as.tibble(quality_data)
+
+summer_cus <-c("5", "6", "9", "11", "14", "19")
+
+summer_data <- quality_data %>% 
+  filter(ANALYSIS_YR >= 1975, CU_INDEX %in% summer_cus)%>%
+  select(CU_INDEX, ANALYSIS_YR, ESTIMATE_CLASSIFICATION, NATURAL_ADULT_SPAWNERS)
+
+view(summer_data)
+
+str(summer_data)
+
+unique(summer_data$ESTIMATE_CLASSIFICATION)
+
+summer_data$ESTIMATE_CLASSIFICATION <-  recode(summer_data$ESTIMATE_CLASSIFICATION,
+                                "TRUE ABUNDANCE (TYPE-1)" = "Type 1",
+                                "TRUE ABUNDANCE (TYPE-2)" = "Type 2",
+                                "RELATIVE ABUNDANCE (TYPE-3)" = "Type 3",
+                                "RELATIVE ABUNDANCE (TYPE-4)"  = "Type 4",
+                                "RELATIVE ABUNDANCE (TYPE-5)" = "Type 5",
+                                "PRESENCE-ABSENCE (TYPE-6)"= "Type 6",
+                                "RELATIVE: CONSTANT MULTI-YEAR METHODS" = "Unknown",
+                                "RELATIVE: VARYING MULTI-YEAR METHODS" = "Unknown",
+                                "NONE OBSERVED" ="Unknown",
+                                "UNKNOWN" = "Unknown",
+                                "NO SURVEY THIS YEAR" = "Not Surveyed",
+                                .default= "Unknown"
+                                
+                            
+)
+
+view(summer_data)
+str(summer_data)
+
+summer_data <- summer_data %>%
+  mutate(ESTIMATE_CLASSIFICATION = as.factor(ESTIMATE_CLASSIFICATION))
+
+# Calculate proportion of spawner abundance for each precision type within each year for each timing group
+summer_data<- summer_data %>%
+  group_by(ANALYSIS_YR, ESTIMATE_CLASSIFICATION) %>%
+  summarise(NATURAL_ADULT_SPAWNERS = sum(NATURAL_ADULT_SPAWNERS, na.rm = TRUE)) %>%
+  group_by(ANALYSIS_YR) %>%
+  mutate(proportion = NATURAL_ADULT_SPAWNERS / sum(NATURAL_ADULT_SPAWNERS, na.rm = TRUE))  # Calculate proportion
+
+
+
+farbenblind_muted_10 <- c("#332288", "#88CCEE","#117733", "#DDCC77","#999933",
+              "#CC6677", "#882255", "#DDDDDD", "#AA4499")
+#### Create Stacked Bar Plot ####
+ggplot(summer_data, aes(x = factor(ANALYSIS_YR), y = proportion, fill = ESTIMATE_CLASSIFICATION)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(
+    x = "Return Year",
+    y = "Proportion of Spawner Abundance",
+    fill = "NuSEDS Estimate Type"
+  ) +
+  scale_y_continuous(labels = label_percent(),
+   expand = expansion(mult = c(0, 0.05))  # remove bottom space, small top space
+  ) +
+  scale_x_discrete(
+    # If you want every year
+    # breaks = levels(factor(spring_data$ANALYSIS_YR))
+    # 
+    # # Or for readability, show every 5 years
+    breaks = as.character(seq(1975, 2024, by = 4))
+  ) +
+  scale_fill_manual(values=farbenblind_muted_10 ) + # colorblind-friendly
+  theme_classic() +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 10, hjust = 1, vjust = 1)
+  )
+
+
+ggsave("SU1.3_data_quality_propotions.png",plot = last_plot(), width = 7, height = 5, units = "in", dpi = 300)
+
+
+
+
 
 ```
