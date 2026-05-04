@@ -39,4 +39,5 @@ wa_dat %>% ggplot(aes(x = (log(watershed_area) - mean(log(watershed_area))) / sd
   labs(x = "log(Watershed area)", y = "log(Srep)")+
   theme_classic()
 
+#ggsave(height = 2.5, width = 3, units = "in", filename = "parken_model.pdf")
 

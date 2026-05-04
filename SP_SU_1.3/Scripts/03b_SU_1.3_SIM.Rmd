@@ -192,8 +192,8 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 This last chunk runs the simulation.
 ```{r sim input files}
 
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_opti.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
 # 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su_pess.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_pess.csv")
@@ -201,22 +201,22 @@ CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su_opti.csv")
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
 
-#uncomment to run the simulation
-t <- Sys.time()
-for(k in 1:10){
-  for(u in 1:nrow(simPar)){
-    genericRecoverySim(
-      simPar = simPar[u,],
-      cuPar = CUPar,
-      srDat = NULL,
-      ricPars = sim_post_vars[[k]],
-      nTrials = 500, #number of trials used to produce the plots
-      #nTrials = 10, #good number of iterations for testing the simulation
-      cuCustomCorrMat = pcor,
-      outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
-    }
-}
-Sys.time() - t
+# #uncomment to run the simulation
+# t <- Sys.time()
+# for(k in 1:10){
+#   for(u in 1:nrow(simPar)){
+#     genericRecoverySim(
+#       simPar = simPar[u,],
+#       cuPar = CUPar,
+#       srDat = NULL,
+#       ricPars = sim_post_vars[[k]],
+#       nTrials = 500, #number of trials used to produce the plots
+#       #nTrials = 10, #good number of iterations for testing the simulation
+#       cuCustomCorrMat = pcor,
+#       outDir = here::here(paste('outputs', alpha_nu[k], sep = "")))
+#     }
+# }
+# Sys.time() - t
 
 ```
 

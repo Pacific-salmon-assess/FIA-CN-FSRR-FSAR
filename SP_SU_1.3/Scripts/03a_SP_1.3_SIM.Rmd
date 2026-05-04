@@ -190,11 +190,11 @@ m_props <- tau_comp(ppnMat)$pa #mean age proportions
 This last chunk runs the simulation.
 ```{r sim input files}
 #each pair of CSVs is for a different error scenario - comment out the other 2 when running simulation
-simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
-CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
+# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_opti.csv")
+# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_opti.csv")
 # 
-# simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_pess.csv")
-# CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_pess.csv")
+simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp_pess.csv")
+CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp_pess.csv")
 # 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_sp-impl.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_sp-impl.csv")

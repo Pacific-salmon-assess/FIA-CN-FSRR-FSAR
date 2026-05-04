@@ -42,7 +42,13 @@ f_dat <- fec_dat %>% mutate(sd = sp_13_sd) %>%
   mutate(f_new = ifelse(n_sampled == 1, fecundity, rnorm(n(), fecundity, sd))) %>% 
   dplyr::select(SMU, stock, year, fecundity = f_new)
 
+f_dat %>% ggplot(aes(x = fecundity, fill = SMU, colour = NULL))+
+  geom_density(alpha = 0.5)+
+  scale_fill_manual(values = c("#D55E00", "#009E73", "#0072B2"))+
+  labs(x = "Fecundity", y = "Density")+
+  theme_classic()
 
+ggsave(height = 2.5, width = 3, units = "in", filename = "fec_dat.pdf")
 ```
 
 
@@ -103,6 +109,13 @@ preds %>% ggplot(aes(x = year, y = nuy-lrs))+
   labs(x = "Brood Year", y = "Predicted - Observed")+
   theme_classic()
 
+nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
+  geom_point()+
+  geom_function(fun = function(x) exp(median(alpha_nic$alpha) - median(as.vector(extract(fit)[1])$beta)*x)*x)+
+  labs(x = "Spawners", y = "Recruits")+
+  theme_classic()
+
+ggsave(height = 2.5, width = 3, units = "in", filename = "nic_sr_fit.pdf")
   
 ```
 

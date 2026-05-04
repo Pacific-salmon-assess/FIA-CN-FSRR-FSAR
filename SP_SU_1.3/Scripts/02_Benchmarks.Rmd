@@ -119,3 +119,83 @@ summ_smsy <- nu_smax %>% group_by(CU) %>%
 ```
 
 
+
+```{r plotting Ricker Curves}
+
+alph <- rbind(summ_alpha_sp1.3, summ_alpha_su1.3)
+alph$SMU <- c(rep("SP_1.3", 4), rep("SU_1.3", 4))
+
+summ_alpha <- alph %>% pivot_wider(names_from = param, values_from = value) %>% dplyr::select(SMU, CI50_alpha = CI50_a)
+
+rick <- left_join(summ_beta %>% dplyr::select(CU, CI50_beta, SMU), summ_alpha, by = "SMU")
+
+
+############################################## Summers
+rick_su <- rick %>% filter(SMU == "SU_1.3")
+
+curve_fun_su <- function(x, i){
+    (exp(-rick_su$CI50_beta[i] * x + rick_su$CI50_alpha[i])) * x
+}
+
+n = nrow(rick_su)
+
+plot_multiple_lines <- function(n) {
+  p <- ggplot() + xlim(0, 75000)
+  
+  for (i in 1:n) {
+    p <- p + geom_function(fun = curve_fun_su, 
+                           args = list(i = i),
+                           colour = "#008080ff")+
+      labs(x = "Spawners", y = "Recruits")+
+      theme_classic()
+  }
+  return(p)
+}
+
+plot_multiple_lines(n) + 
+  geom_function(fun = function(x) x * exp(pull(summ_alpha[2,2])), colour = "black")+
+  geom_vline(xintercept = as.vector((summ_smax0.2 %>% filter(SMU == "SU_1.3"))$CI50_lbb / 0.2), colour = "orange")+
+  scale_x_continuous(expand = c(0.005,0.005),
+                     breaks = c(0, 10000, 20000, 30000, 40000, 50000))+
+  scale_y_continuous(expand = c(0.005,0.005),
+                     breaks = c(0, 10000, 20000, 30000, 40000, 50000),
+                     limits = c(0, 50000))
+
+#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_su.pdf")
+ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_su.pdf")
+
+############################################## Springs
+rick_sp <- rick %>% filter(SMU == "SP_1.3")
+
+curve_fun_sp <- function(x, i){
+    (exp(-rick_sp$CI50_beta[i] * x + rick_sp$CI50_alpha[i])) * x
+}
+
+n = nrow(rick_sp)
+
+plot_multiple_lines <- function(n) {
+  p <- ggplot() + xlim(0, 75000)
+  
+  for (i in 1:n) {
+    p <- p + geom_function(fun = curve_fun_sp, 
+                           args = list(i = i),
+                           colour = "#008080ff")+
+      labs(x = "Spawners", y = "Recruits")+
+      theme_classic()
+  }
+  return(p)
+}
+
+plot_multiple_lines(n) + 
+  geom_function(fun = function(x) x * exp(pull(summ_alpha[1,2])), colour = "black")+
+  geom_vline(xintercept = as.vector((summ_smax0.2 %>% filter(SMU == "SP_1.3"))$CI50_lbb / 0.2), colour = "orange")+
+  scale_x_continuous(expand = c(0.005,0.005),
+                     breaks = c(0, 5000, 10000, 15000, 20000, 25000),
+                     limits = c(0, 30000))+
+  scale_y_continuous(expand = c(0.005,0.005),
+                     breaks = c(0, 5000, 10000, 15000, 20000, 25000),
+                     limits = c(0, 28000))
+
+#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_sp.pdf")
+ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_sp.pdf")
+```
