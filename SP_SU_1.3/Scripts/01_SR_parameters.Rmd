@@ -42,10 +42,14 @@ f_dat <- fec_dat %>% mutate(sd = sp_13_sd) %>%
   mutate(f_new = ifelse(n_sampled == 1, fecundity, rnorm(n(), fecundity, sd))) %>% 
   dplyr::select(SMU, stock, year, fecundity = f_new)
 
-f_dat %>% ggplot(aes(x = fecundity, fill = SMU, colour = NULL))+
-  geom_density(alpha = 0.5)+
-  scale_fill_manual(values = c("#D55E00", "#009E73", "#0072B2"))+
+f_dat %>% mutate(stock = ifelse(SMU == "sp_12", "Fraser Spring 1.2",
+                                ifelse(SMU == "sp_13", "Fraser Spring 1.3", "Fraser Summer 1.3"))) %>% 
+  ggplot(aes(x = fecundity, fill = stock, colour = NULL))+
+  geom_histogram(alpha = 0.5)+
+  scale_fill_manual(values = c("#D55E00", "#009E73", "#0072B2"),
+                    labels = c("Fraser Spring 1.2", "Fraser Spring 1.3", "Fraser Summer 1.3"))+
   labs(x = "Fecundity", y = "Density")+
+  facet_wrap(~SMU, nrow = 3)+
   theme_classic()
 
 ggsave(height = 2.5, width = 3, units = "in", filename = "fec_dat.pdf")
@@ -117,6 +121,93 @@ nic_dat %>% ggplot(aes(x = total_spawners, y = no_recruits))+
 
 ggsave(height = 2.5, width = 3, units = "in", filename = "nic_sr_fit.pdf")
   
+
+##############SR Function Plot####################
+
+#mean prediction function for real space Ricker with SS index covariate
+ricker_exp <- function(x){
+  exp(-out$summary[1,1] * x + out$summary[2,1]) * x
+}
+
+#drawing from the posterior distribution to plot error in relationships
+alpha <- as.vector(extract(fit)[2])
+beta <- as.vector(extract(fit)[1])
+gamma <- as.data.frame(extract(fit)[3])
+post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
+
+#sampling from the posterior using rows that fall within the 95% CI for alpha
+qpost <- post %>% filter(alpha > quantile(post$alpha, probs = c(0.025)) & alpha < quantile(post$alpha, probs = c(0.975)))
+
+set.seed(1352)
+poste <- sample_n(qpost, 1000)
+
+#taking a sample of 1000 lines from the 95% CI of the posterior for the normal space Ricker
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="blue",
+                alpha = 0.1, linewidth = 0.05)
+  })
+
+preds$spawn <- nic_dat$no_spawners
+
+#normal space Ricker plot
+preds %>% ggplot(aes(x = spawn, y = exp(lrs)*spawn))+
+  uncertainty_ricker_exp+
+  geom_point()+
+  geom_function(fun = ricker_exp)+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  labs(x = "Spawners(n)", y = "Recruits(n)")+
+  scale_y_continuous(limits = c(0, 25000))+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4, units = "in", filename = "nic_sr_fit.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "nic_sr_fit.png")
+
+
+
+################Fecundity results
+
+fnic <- f_nic$f_nic
+fsu <- f_su$f_su
+fsp <- f_sp$f_sp
+
+f_new <- c(fnic, fsu, fsp)
+stock <- c(rep("Fraser Spring 1.2", length(fnic)), rep("Fraser Summer 1.3", length(fsu)), rep("Fraser Spring 1.3", length(fsp)))
+fec_dat <- data.frame(f_new, stock)
+
+fec_dat %>% 
+  ggplot(aes(x = f_new, fill = stock, colour = NULL))+
+  geom_histogram(alpha = 0.5)+
+  scale_fill_manual(values = c("#D55E00", "#009E73", "#0072B2"),
+                    labels = c("Fraser Spring 1.2", "Fraser Spring 1.3", "Fraser Summer 1.3"))+
+  labs(x = "Fecundity", y = "Density")+
+  facet_wrap(~stock, nrow = 3)+
+  theme_classic()+
+  theme(legend.position = "none")
+
+ggsave(height = 4, width = 3, units = "in", filename = "fec_dat.pdf")
+ggsave(height = 4, width = 3, units = "in", filename = "fec_dat.png")
+
+####################alpha results
+anic <- alpha_nic$alpha
+asu <- alpha_su$alpha
+asp <- alpha_sp$alpha
+
+a_new <- c(anic, asu, asp)
+stock <- c(rep("Fraser Spring 1.2", length(anic)), rep("Fraser Summer 1.3", length(asu)), rep("Fraser Spring 1.3", length(asp)))
+alpha_dat <- data.frame(a_new, stock)
+
+alpha_dat %>% filter(stock != "Fraser Spring 1.2") %>% 
+  ggplot(aes(x = a_new, fill = stock, colour = NULL))+
+  geom_histogram(alpha = 0.5)+
+  scale_fill_manual(values = c("#D55E00", "#009E73", "#0072B2"),
+                    labels = c("Fraser Spring 1.2", "Fraser Spring 1.3", "Fraser Summer 1.3"))+
+  labs(x = "Productivity (ln(a))", y = "Density")+
+  facet_wrap(~stock, nrow = 3)+
+  theme_classic()+
+  theme(legend.position = "none")
+
+ggsave(height = 4, width = 3, units = "in", filename = "alpha_dat.pdf")
+ggsave(height = 4, width = 3, units = "in", filename = "alpha_dat.png")
 ```
 
 

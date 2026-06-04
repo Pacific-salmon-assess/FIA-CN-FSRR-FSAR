@@ -90,6 +90,23 @@ summ_beta <- nu_smax %>% group_by(CU) %>%
             CI97.5_beta = quantile(1/smax, probs = 0.975)) %>% 
   left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
 
+nu_smax %>% ggplot(aes(x = (1/smax), fill = smu, colour = smu))+
+  geom_density(alpha = 0.5)+
+  scale_x_continuous(limits = c(0, 0.0025))+
+  scale_colour_manual(values = c("#D55E00", "#0072B2"))+
+  scale_fill_manual(values = c("#D55E00", "#0072B2"))+
+  labs(x = "Beta", y = "Density")+
+  facet_wrap(.~ CU)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        legend.position = "none")
+
+ggsave(height = 4, width = 4, units = "in", filename = "beta_dat.pdf")
+ggsave(height = 4, width = 4, units = "in", filename = "beta_dat.png")
+
+#ggsave(height = 4, width = 4, units = "in", filename = "beta_rsa_dat.pdf")
+#ggsave(height = 4, width = 4, units = "in", filename = "beta_rsa_dat.png")
+
 #0.2 * Smax (LBB)
 summ_smax0.2 <- nu_smax %>% group_by(CU) %>% 
   summarize(mu_lbb = mean(smax*0.2),
@@ -100,22 +117,22 @@ summ_smax0.2 <- nu_smax %>% group_by(CU) %>%
 
 saveRDS(summ_smax0.2, "smax0.2.RDS")
 
-summ_smsy <- nu_smax %>% group_by(CU) %>% 
-  summarize(mu_85smsy = 0.85*mean((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su)))) / (1/smax)),
-            CI2.5_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.025),
-            CI50_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.5),
-            CI97.5_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
-                                            alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.975)) %>% 
-  left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
-
-
+# summ_smsy <- nu_smax %>% group_by(CU) %>% 
+#   summarize(mu_85smsy = 0.85*mean((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su)))) / (1/smax)),
+#             CI2.5_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.025),
+#             CI50_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.5),
+#             CI97.5_85smsy = 0.85*quantile(((1 - lambertW0(ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su) * exp(1-ifelse(smu == "SP_1.3", alpha_sp1.3$alpha_sp,
+#                                             alpha_su1.3$alpha_su)))) / (1/smax)), probs = 0.975)) %>% 
+#   left_join(., nu_wa %>% dplyr::select(CU = pop, SMU = smu), by = "CU")
+# 
+# saveRDS(summ_smsy, "smsy.RDS")
 ```
 
 
@@ -161,8 +178,8 @@ plot_multiple_lines(n) +
                      breaks = c(0, 10000, 20000, 30000, 40000, 50000),
                      limits = c(0, 50000))
 
-#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_su.pdf")
-ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_su.pdf")
+ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_su.pdf")
+#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_su.pdf")
 
 ############################################## Springs
 rick_sp <- rick %>% filter(SMU == "SP_1.3")
@@ -196,6 +213,7 @@ plot_multiple_lines(n) +
                      breaks = c(0, 5000, 10000, 15000, 20000, 25000),
                      limits = c(0, 28000))
 
-#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_sp.pdf")
-ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_sp.pdf")
+ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\sim_rick_curves_sp.pdf")
+#ggsave(height = 2.5, width = 3, units = "in", filename = "SP_SU_1.3\\Figures\\rsa_rick_curves_sp.pdf")
 ```
+

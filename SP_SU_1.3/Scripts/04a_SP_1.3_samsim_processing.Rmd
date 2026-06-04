@@ -648,12 +648,17 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]"))) + 
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8))
@@ -687,16 +692,21 @@ legend1 = get_legend(CU_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    CU_plot[[i]] <- CU_plot[[i]]+
-   theme(legend.position='none',
+   if(i == 1 | i == 4){
+     theme(legend.position='none',
+         axis.text.y = element_text(colour = "black"),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   } else {
+     theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   }
 }
 
 pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
-                                axis.title.x = element_text(colour = "white"),
-                                axis.text.x = element_text(colour = "white"),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
@@ -704,20 +714,18 @@ pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-CU <- ggdraw(plot_grid(pess_plotA, CU_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), 
-                                   CU_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), CU_plot[[3]], 
+CU <- ggdraw(plot_grid(pess_plotA, CU_plot[[1]], 
+                                   CU_plot[[2]], CU_plot[[3]], 
                        pess_plotB, CU_plot[[4]], CU_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
+ggsave(CU_plot, height = 5, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_pess.pdf")
 
 ```
 
@@ -751,18 +759,23 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> LBB)",
+                     name = "P(Conservation Unit\n> 20% Smax)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]"))) + 
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8))
@@ -796,16 +809,21 @@ legend1 = get_legend(LBB_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    LBB_plot[[i]] <- LBB_plot[[i]]+
-   theme(legend.position='none',
+   if(i == 1 | i == 4){
+     theme(legend.position='none',
+         axis.text.y = element_text(colour = "black"),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   } else {
+     theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   }
 }
 
 pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
-                                axis.title.x = element_text(colour = "white"),
-                                axis.text.x = element_text(colour = "white"),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
@@ -813,20 +831,18 @@ pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-LBB <- ggdraw(plot_grid(pess_plotA, LBB_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), 
-                                   LBB_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), LBB_plot[[3]], 
+LBB <- ggdraw(plot_grid(pess_plotA, LBB_plot[[1]], 
+                                   LBB_plot[[2]], LBB_plot[[3]], 
                        pess_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 LBB_plot <- cowplot::plot_grid(LBB)
 
-ggsave(LBB_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
+ggsave(LBB_plot, height = 5, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB_pess.pdf")
 
 ```
 
@@ -860,16 +876,21 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]")))+
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8),
-         axis.text.y = element_blank(),
+         axis.text.y = element_text(colour = "black"),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
@@ -910,11 +931,11 @@ SMU <- ggdraw(plot_grid(pess_plotB, SMU_plot + theme(legend.position = "none"), 
                        labels = c("", "Fraser\nSP 1.3"),
                        label_size = 8,
                        label_colour = "white",
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 SMU_plot <- cowplot::plot_grid(SMU)
 
-ggsave(SMU_plot, height = 2.15, width = 6.75, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_SMU.pdf")
+ggsave(SMU_plot, height = 2.15, width = 6.75, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_SMU_pess.pdf")
 
 ```
 
@@ -954,12 +975,17 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]"))) + 
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8))
@@ -993,37 +1019,40 @@ legend1 = get_legend(CU_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    CU_plot[[i]] <- CU_plot[[i]]+
-   theme(legend.position='none',
+   if(i == 1 | i == 4){
+     theme(legend.position='none',
+         axis.text.y = element_text(colour = "black"),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   } else {
+     theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   }
 }
 
-pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+opti_plotA <- opti_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
-                                axis.title.x = element_text(colour = "white"),
-                                axis.text.x = element_text(colour = "white"),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-CU <- ggdraw(plot_grid(pess_plotA, CU_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), 
-                                   CU_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), CU_plot[[3]], 
-                       pess_plotB, CU_plot[[4]], CU_plot[[5]], legend1,
+CU <- ggdraw(plot_grid(opti_plotA, CU_plot[[1]], 
+                                   CU_plot[[2]], CU_plot[[3]], 
+                       opti_plotB, CU_plot[[4]], CU_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 CU_plot <- cowplot::plot_grid(CU)
 
-ggsave(CU_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
+ggsave(CU_plot, height = 5, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU.pdf")
 
 ```
 
@@ -1057,18 +1086,23 @@ for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    ggplot(aes(x = alpha, y = targetER, z = fail, fill = fail))+
    geom_tile(show.legend = c(fill = TRUE))+
    scale_fill_manual(values = Ccols, 
-                     name = "P(Conservation Unit\n> LBB)",
+                     name = "P(Conservation Unit\n> 20% Smax)",
                      breaks = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")),
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)")))+
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]"))) + 
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8))
@@ -1102,37 +1136,40 @@ legend1 = get_legend(LBB_plot[[1]])
 
 for(i in 1:length(unique(sim_sum_CU$CU_ID))){
    LBB_plot[[i]] <- LBB_plot[[i]]+
-   theme(legend.position='none',
+   if(i == 1 | i == 4){
+     theme(legend.position='none',
+         axis.text.y = element_text(colour = "black"),
+         axis.title.y = element_blank(),
+         plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   } else {
+     theme(legend.position='none',
          axis.text.y = element_blank(),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+   }
 }
 
-pess_plotA <- pess_plot + theme(legend.text = element_text(size = 8),
+opti_plotA <- opti_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
-                                axis.title.x = element_text(colour = "white"),
-                                axis.text.x = element_text(colour = "white"),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-LBB <- ggdraw(plot_grid(pess_plotA, LBB_plot[[1]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), 
-                                   LBB_plot[[2]] + theme(axis.title.x = element_text(colour = "white"),
-                                                        axis.text.x = element_text(colour = "white")), LBB_plot[[3]], 
-                       pess_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
+LBB <- ggdraw(plot_grid(opti_plotA, LBB_plot[[1]], 
+                                   LBB_plot[[2]], LBB_plot[[3]], 
+                       opti_plotB, LBB_plot[[4]], LBB_plot[[5]], legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 4, nrow = 2, axis = c("l"), align = c("hv"),
                        labels = c("", "Lower\nFraser", "Fraser\nCanyon", "Middle\nFraser","","Upper\nFraser", "North\nThompson", ""),
                        label_size = 8,
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 LBB_plot <- cowplot::plot_grid(LBB)
 
-ggsave(LBB_plot, height = 4.3, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
+ggsave(LBB_plot, height = 5, width = 9, units = "in", filename = "SP_SU_1.3\\Figures\\SP\\sim_sum_CU_LBB.pdf")
 
 ```
 
@@ -1166,16 +1203,21 @@ SMU_plot <- sim_sum_SMU  %>% mutate(fail = ifelse(p_fail <= 0.04, "Very Low (0.0
                      drop = F,
                      limits = rev(c("Very Low (0.00-0.04)", "Low (0.05-0.24)", "Moderately Low (0.25-0.49)",
                                     "Moderately High (0.50-0.74)", "High (0.75-0.94)", "Very High (0.95-1.00)"))) +
-   scale_x_continuous(expand = c(0,0))+
+   scale_x_continuous(expand = c(0,0),
+                      breaks = c(0.35, 0.9, 1.5, 2.1),
+                      sec.axis = sec_axis(~ (1-lambertW0(exp(1-.))),
+                                          name = expression(paste(italic("U")[MSY])),
+                                          breaks = c(0.17, 0.41, 0.60, 0.74)))+
    scale_y_continuous(expand = c(0,0),
                       breaks = all_breaks,
                       labels = my_labels)+
+   geom_vline(xintercept = median(alpha_sp), colour = "grey20", linetype = "dashed", linewidth = 1)+
    labs(y = "CAN CYER", 
-        x = "Productivity [ln(α)]") + 
+        x = expression(paste("Productivity [ln(",italic(α),")]")))+
    theme_classic() +
    theme(legend.text = element_text(size = 8),
          legend.title = element_text(size = 8),
-         axis.text.y = element_blank(),
+         axis.text.y = element_text(colour = "black"),
          axis.title.y = element_blank(),
          plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
@@ -1205,18 +1247,18 @@ get_legend <- function(plot, legend = NULL) {
 
 legend1 = get_legend(SMU_plot)
 
-pess_plotB <- pess_plot + theme(legend.text = element_text(size = 8),
+opti_plotB <- opti_plot + theme(legend.text = element_text(size = 8),
                                 legend.title = element_text(size = 8),
                                 plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 
-SMU <- ggdraw(plot_grid(pess_plotB, SMU_plot + theme(legend.position = "none"), legend1,
+SMU <- ggdraw(plot_grid(opti_plotB, SMU_plot + theme(legend.position = "none"), legend1,
                        #rel_widths = c(1, 1, 1, 1, 1, .2),
                        ncol = 3, nrow = 1, axis = c("l"), align = c("hv"),
                        labels = c("", "Fraser\nSP 1.3"),
                        label_size = 8,
                        label_colour = "white",
-                       label_x = 0.95, label_y = 1.00, hjust = 1))
+                       label_x = 0.95, label_y = 0.85, hjust = 1))
 
 SMU_plot <- cowplot::plot_grid(SMU)
 

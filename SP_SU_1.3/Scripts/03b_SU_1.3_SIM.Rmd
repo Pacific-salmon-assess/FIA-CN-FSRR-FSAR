@@ -200,7 +200,7 @@ This last chunk runs the simulation.
 # 
 # simPar <- read.csv("SP_SU_1.3\\samsim pars\\SimPars_su-impl.csv")
 # CUPar <- read.csv("SP_SU_1.3\\samsim pars\\CUPars_su-impl.csv")
-
+# 
 # #uncomment to run the simulation
 # t <- Sys.time()
 # for(k in 1:10){

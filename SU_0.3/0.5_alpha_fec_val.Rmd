@@ -69,22 +69,20 @@ co_fs <- summary(s_model)$coefficients
 #SD of individual measures
 sdf <- har_fec_ind %>% summarise(sd_f = sd(f))
 
+#Harrison individual-level fecundity data simulated - go with number of individuals sampled in 2018 and 2019
 har_f_dat <- har_fec_means %>% mutate(sd = sdf$sd_f) %>% 
   slice(rep(1:n(), times = nrow(har_fec_ind))) %>% 
   mutate(f_new = rnorm(n(), f, sd),
          CU = "FA_0.3") %>% 
   dplyr::select(b_year, f_new, CU)
 
-#Applying a correction factor to the Lower Shuswap SEP fecundity data to adjust for biased brood selection based on the Harrison data
-lshu_f_dat <- lshu_fec_means %>% drop_na() %>% mutate(sd = sdf$sd_f,
-                                                      s_f = (f - mean(f)) / sd(f),
-                                                      f_est = co_fs[1,1] + co_fs[2,1]*s_f,
-                                                      f_ad = (f_est * sd(f)) + mean(f)) %>% 
-  dplyr::select(b_year, f = f_ad, k, sd) %>% 
+#Lower Shuswap individual-level fecundity data simulated - go with number of individuals sampled for fecundity each year, start at 2020 because prior there was "high-grading" for larger females
+lshu_f_dat <- lshu_fec_means %>% drop_na() %>% mutate(sd = sdf$sd_f) %>% 
+  dplyr::select(b_year, f = f, k, sd) %>% 
   slice(rep(1:n(), times = k)) %>% 
   mutate(f_new = rnorm(n(), f, sd),
          CU = "SU_0.3") %>% 
-  dplyr::select(b_year, f_new, CU)
+  dplyr::select(b_year, f_new, CU) %>% filter(b_year > 2019)
 
 
 ```
@@ -138,6 +136,47 @@ preds %>% ggplot(aes(x = year, y = nuy-lrs))+
   geom_hline(yintercept = 0, colour = "Red")+
   labs(x = "Brood Year", y = "Predicted - Observed")+
   theme_classic()
+
+
+##############SR Function Plot####################
+preds$spawn = har_srdat$spawn
+
+#mean prediction function for real space Ricker with SS index covariate
+ricker_exp <- function(x){
+  exp(-out_val1$summary[1,1] * x + out_val1$summary[2,1]) * x
+}
+
+#drawing from the posterior distribution to plot error in relationships
+alpha <- as.vector(extract(fit_val1)[2])
+beta <- as.vector(extract(fit_val1)[1])
+gamma <- as.data.frame(extract(fit_val1)[3])
+post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
+
+#sampling from the posterior using rows that fall within the 95% CI for alpha
+qpost <- post %>% filter(alpha > quantile(post$alpha, probs = c(0.025)) & alpha < quantile(post$alpha, probs = c(0.975)))
+
+set.seed(1352)
+poste <- sample_n(qpost, 1000)
+
+#taking a sample of 1000 lines from the 95% CI of the posterior for the normal space Ricker
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="blue",
+                alpha = 0.1, linewidth = 0.05)
+  })
+
+options(scipen = 999)
+#normal space Ricker plot
+preds %>% ggplot(aes(x = spawn, y = exp(lrs)*spawn))+
+  geom_point(size = 1)+
+  geom_function(fun = ricker_exp)+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  uncertainty_ricker_exp+
+  labs(x = "Spawners(n)", y = "Recruits(n)")+
+  scale_y_continuous(limits = c(0, 600000))+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4, units = "in", filename = "har_sr_fit.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "har_sr_fit.png")
   
 ```
 
@@ -189,24 +228,71 @@ preds %>% ggplot(aes(x = year, y = nuy-lrs))+
   geom_hline(yintercept = 0, colour = "Red")+
   labs(x = "Brood Year", y = "Predicted - Observed")+
   theme_classic()
-  
+
+##############SR Function Plot####################
+preds$spawn = lshu_srdat$spawn
+
+#mean prediction function for real space Ricker with SS index covariate
+ricker_exp <- function(x){
+  exp(-out_val2$summary[1,1] * x + out_val2$summary[2,1]) * x
+}
+
+#drawing from the posterior distribution to plot error in relationships
+alpha <- as.vector(extract(fit_val2)[2])
+beta <- as.vector(extract(fit_val2)[1])
+gamma <- as.data.frame(extract(fit_val2)[3])
+post <- data.frame(alpha, beta, gamma) %>% mutate(beta = beta * -1)
+
+#sampling from the posterior using rows that fall within the 95% CI for alpha
+qpost <- post %>% filter(alpha > quantile(post$alpha, probs = c(0.025)) & alpha < quantile(post$alpha, probs = c(0.975)))
+
+set.seed(1352)
+poste <- sample_n(qpost, 1000)
+
+#taking a sample of 1000 lines from the 95% CI of the posterior for the normal space Ricker
+uncertainty_ricker_exp <- apply(as.matrix(poste), 1, function(poste) {
+  stat_function(fun=function(x){exp(poste[1] + poste[2] * x) * x}, colour="blue",
+                alpha = 0.1, linewidth = 0.05)
+  })
+
+#normal space Ricker plot
+preds %>% ggplot(aes(x = spawn, y = exp(lrs)*spawn))+
+  geom_point()+
+  geom_function(fun = ricker_exp)+
+  geom_abline(aes(slope = 1, intercept = 0), colour = "black", linetype = "dashed")+
+  uncertainty_ricker_exp+
+  labs(x = "Spawners(n)", y = "Recruits(n)")+
+  scale_y_continuous(limits = c(0, 175000))+
+  theme_classic()
+
+ggsave(height = 3.5, width = 4, units = "in", filename = "lshu_sr_fit.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "lshu_sr_fit.png")
 ```
 
 V1 fits a stock-recruit model to the Harrison data and then attempts to estimate Lower Shuswap productivity based on proportional differences in fecundity. V2 does the inverse, and fits a stock-recruit model to the Lower Shuswap data and then attempts to estimate Harrison productivity based on proportional differences in fecundity. Below, we plot the input fecundity data as histograms for each indicator stock, then compare the S-R vs fecundity based alphas for each stock, and then finally the UMSYs.
 ```{r parameter comparisons}
 #fecundity comparison
-fec_dat <- rbind(har_f_dat, lshu_f_dat)
+f_fa <- f_fa_v2$f_fa
+f_su <- f_su_v2$f_su
+
+f_new <- c(f_fa, f_su)
+CU <- c(rep("Harrison River", length(f_fa)), rep("Lower Shuswap River", length(f_su)))
+fec_dat <- data.frame(f_new, CU)
 
 fec_dat %>% ggplot(aes(x = f_new, fill = CU))+
   geom_histogram(aes(x = f_new), alpha = 0.5)+
   scale_fill_manual(values = c("#D55E00", "#0072B2"))+
   labs(x = "Fecundity (n eggs)", y = "Count (n)")+
   facet_wrap(~CU, nrow = 2)+
-  theme_classic()
+  theme_classic()+
+  theme(legend.position = "none")
+
+ggsave(height = 3.5, width = 4, units = "in", filename = "fcomp.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "fcomp.png")
 
 #summer 0.3 alpha estimate comparisons
 a_su <- c(alpha_su_v2$alpha, alpha_su_v1$alpha_su)
-method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+method <- c(rep("Stock-recruit", 30000), rep("Fecundity", 30000))
 pro_su <- data.frame(a_su, method)
 pro_su$med_a <- c(rep(median(alpha_su_v2$alpha), 30000), rep(median(alpha_su_v1$alpha_su), 30000))
 pro_su$u95_a <- c(rep(quantile(alpha_su_v2$alpha, probs = 0.975), 30000), rep(quantile(alpha_su_v1$alpha_su, probs = 0.975), 30000))
@@ -221,9 +307,12 @@ pro_su %>% ggplot(aes(x = a_su))+
   facet_wrap(~ method, nrow = 2)+
   theme_classic()
 
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_su.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_su.png")
+
 #fall 0.3 alpha estimate comparisons
 a_fa <- c(alpha_fa_v1$alpha, alpha_fa_v2$alpha_fa)
-method <- c(rep("Ricker", 30000), rep("Fecundity", 30000))
+method <- c(rep("Stock-recruit", 30000), rep("Fecundity", 30000))
 pro_fa <- data.frame(a_fa, method)
 pro_fa$med_a <- c(rep(median(alpha_fa_v1$alpha), 30000), rep(median(alpha_fa_v2$alpha_fa), 30000))
 pro_fa$u95_a <- c(rep(quantile(alpha_fa_v1$alpha, probs = 0.975), 30000), rep(quantile(alpha_fa_v2$alpha_fa, probs = 0.975), 30000))
@@ -238,13 +327,20 @@ pro_fa %>% ggplot(aes(x = a_fa))+
   facet_wrap(~ method, nrow = 2)+
   theme_classic()
 
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_fa.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_fa.png")
+
 #Comparison of the alpha estimates 
 ggplot()+
   geom_histogram(data = pro_fa, aes(x = a_fa), fill = "#D55E00", alpha = 0.3)+
   geom_histogram(data = pro_su, aes(x = a_su), fill = "#0072B2", alpha = 0.3)+
   facet_wrap(.~ method, nrow = 2)+
-  labs(x = "Productivity (ln(alpha))", y = "Count (n)")+
+  scale_x_continuous(limits = c(0,3))+
+  labs(x = "Productivity (ln(a))", y = "Count (n)")+
   theme_classic()
+
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_allpops.pdf")
+ggsave(height = 3.5, width = 4, units = "in", filename = "acompmeth_allpops.png")
 
 #summer 0.3 Umsy estimate comparisons
 u_su <- c(umsy_su_v2$umsy_su, umsy_su_v1$umsy_su)
@@ -284,47 +380,3 @@ u_fa %>% ggplot(aes(x = u_fa))+
 
 ```
 
-
-```{r adjusted alpha}
-
-#reading in the stream- and ocean-type alphas dataset from the Parken habitat model
-stream <- read.csv("data\\smax_habitat_model_data_stream-type_ March 2026.csv")
-
-#simple Stan model to estimate mean alpha for stream- and ocean-type chinook, then mean proportional difference with uncertainty to apply to the lower shu and harrison populations
-
-#creating the list of data to feed to Stan
-dat <- list("o_N" = length(pull(stream %>% filter(l_hist == "ocean-type"))),
-            "s_N" = length(pull(stream %>% filter(l_hist == "Stream-type"))),
-            "a_o" = (stream %>% filter(l_hist == "ocean-type"))[,6],
-            "a_s" = (stream %>% filter(l_hist == "Stream-type"))[,6]) 
-
-#running the Stan model
-fit_acomp <- stan(file = "R//alpha_comp.stan", data = dat, chains=6,
-                    iter=10000, cores=6, thin = 1, seed = 1352,
-                    control=list("max_treedepth"=15,"adapt_delta"=0.8),
-                    pars=c("alpha_o", "alpha_s", "r_sto"))
-
-saveRDS(fit_acomp, "R//acomp_fit.RDS")
-
-#all Stan model fits required to do adjustment and create one large alpha posterior for Fraser Stream-type Chinook
-fit_acomp <- readRDS("R//acomp_fit.RDS")
-fit <- readRDS("R//sp_su_1.3_fit.RDS")
-fit_val1 <- readRDS("R//val1_0.3_fit.RDS")
-fit_val2 <- readRDS("R//val2_0.3_fit.RDS")
-
-#extract alpha posteriors for lower shuswap and harrison... then extract posterior of ratio between mean alpha of stream- vs ocean-type chinook populations
-a_har <- as.vector(extract(fit_val1)[2])$alpha
-a_shu <- as.vector(extract(fit_val2)[2])$alpha
-r_sto <- as.vector(extract(fit_acomp)[3])$r_sto
-
-#create combined posterior of Nicola, adjusted Harrison, and adjusted Lower Shuswap for alpha parameter
-a_har_ad <- a_har * r_sto
-a_shu_ad <- a_shu * r_sto
-a_post <- c(a_har_ad, a_shu_ad, as.vector(extract(fit)[2])$alpha)
-
-#summarize new combined posterior
-quant <- quantile(a_post, probs = c(0.025, 0.975, 0.5))
-
-umsy <- (1 - lambertW0(exp(1 - (quant))))
-
-```
